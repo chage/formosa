@@ -1,4 +1,4 @@
-/* 
+/*
  * Li-te Huang, lthuang@cc.nsysu.edu.tw, 03/09/98
  * Last updated: 06/02/98
  */
@@ -34,12 +34,10 @@ char mypasswd[PASSLEN];
 int multi_logins = 1;
 
 extern pid_t child_pid;
-extern BOOL show_ansi;
+BOOL show_ansi;
+BOOL fix_screen;
 extern MSQ allmsqs[];
 extern int msq_first, msq_last;
-
-extern char *genpasswd();
-
 
 /**
  ** Idle Timeout
@@ -50,7 +48,7 @@ void saybyebye(int s)
 
 	while (fd)
 		close(--fd);
-	shutdown(0, 2);
+	shutdown(0, SHUT_RDWR);
 	close(0);
 	exit(0);
 }
@@ -62,7 +60,7 @@ void abort_bbs(int s)
 		kill(child_pid, SIGKILL);
 
 	user_logout(cutmp, &curuser);
-	shutdown(0, 2);
+	shutdown(0, SHUT_RDWR);
 	exit(0);
 }
 
@@ -78,7 +76,7 @@ static void talk_request(int s)
 {
 #if	defined(LINUX) || defined(SOLARIS)
 	/*
-	 * Reset signal handler for SIGUSR1, when signal received, 
+	 * Reset signal handler for SIGUSR1, when signal received,
 	 * some OS set the handler to default, SIG_DFL. The SIG_DFL
 	 * usually is terminating the process. So, when user was paged
 	 * twice, he will be terminated.
@@ -95,17 +93,17 @@ static void msq_request(int s)
 	static char bigbuf[1024];
 	static int len;
 	static MSQ tmp;
-	
+
 	len = 0;
 	while (msq_rcv(cutmp, &tmp) == 0)
 	{
 		/* overwrite the previous when queue is full */
 		if (msq_last != -1 && (msq_last + 1) % LOCAL_MAX_MSQ == msq_first)
-			msq_first = (msq_first + 1) % LOCAL_MAX_MSQ;		
-		
+			msq_first = (msq_first + 1) % LOCAL_MAX_MSQ;
+
 		msq_last = (msq_last + 1) % LOCAL_MAX_MSQ;
 		memcpy(&(allmsqs[msq_last]), &tmp, sizeof(tmp));
-	
+
 		msq_tostr(&(allmsqs[msq_last]), genbuf);
 		strcpy(bigbuf + len, genbuf);
 		len += strlen(genbuf);
@@ -115,7 +113,7 @@ static void msq_request(int s)
 	if (len > 0)
 	{
 		int fd;
-		
+
 		if ((fd = open(ufile_write, O_WRONLY | O_CREAT | O_APPEND, 0600)) > 0)
 		{
 			lseek(fd, 0, SEEK_END);
@@ -126,14 +124,14 @@ static void msq_request(int s)
 /*
 for speed-up, not use lock-file append
 		append_record(ufile_write, bigbuf, len);
-*/		
+*/
 	}
 
 #if	defined(LINUX) || defined(SOLARIS)
 	signal(SIGUSR2, msq_request);
 #endif
 	warn_bell();
-		
+
 	msqrequest = TRUE;
 }
 
@@ -176,20 +174,42 @@ static void user_init()
                 strip_ansi = FALSE;
 	/* sarek:01/02/2000 above */
 
+	if (curuser.flags[1] & SCREEN_FLAG)
+		fix_screen = TRUE;
+	else
+		fix_screen = FALSE;
 
 	ReadRC_Expire();
 
-	/* 
-	 * If user multi-login, 
-	 * we should not remove the exist message. by lthuang
-	 */
-	if (multi_logins < 2)
-		unlink(ufile_write);
 	/*
-	 * Some user complain that there were some mail mark deleted in 
+	 * If user multi-login,
+	 * we should not remove the exist message. by lthuang
+	 * otherwise, we try to backup it to user's mailbox. by cooldavid
+	 */
+	if (multi_logins < 2 && isfile(ufile_write)
+#ifdef GUEST
+	    && strcmp(curuser.userid, GUEST)
+#endif
+	   ) {
+		char fname[PATHLEN];
+
+		if (!check_mail_num(0)) {
+			sprintf(fname, "tmp/_writebackup.%s", curuser.userid);
+			if (get_message_file(fname, "[備份] 訊息記錄") == 0)
+			{
+				SendMail(-1, fname, curuser.userid, curuser.userid,
+						 "[備份] 訊息記錄", curuser.ident);
+				unlink(fname);
+			}
+		}
+		unlink(ufile_write);
+	}
+
+	/*
+	 * Some user complain that there were some mail mark deleted in
 	 * their mail box for a long time. In fact, they do not logout
 	 * in proper way, so result in this situation. We do this checking
-	 * for force-packing their mail box. by lthuang 
+	 * for force-packing their mail box. by lthuang
 	 */
 	if ((curuser.numlogins % 7) == 0)
 		pack_article(ufile_mail);
@@ -205,7 +225,7 @@ static void user_init()
 			curuser.pager = PAGER_FRIEND;
 	}
 
-	/* old PICTURE_FLAG is [1]:0x01 */ 
+	/* old PICTURE_FLAG is [1]:0x01 */
 	if (curuser.flags[1] & 0x01)
 	{
 		curuser.flags[0] |= PICTURE_FLAG;
@@ -248,7 +268,7 @@ static void user_init()
                 strcpy(curuser.fakeuserid, curuser.userid);
         }
 #endif
-	
+
 #if 0
 	{
 		FILE *fp;
@@ -297,7 +317,7 @@ static void new_register(USEREC *nu)
 	int attempt = 0;
 
 	int fd;
-		
+
 	clear();
 
 	if ((fd = open(NEWID_HELP, O_RDONLY)) > 0)
@@ -439,7 +459,7 @@ static void login_query()
 			if ((ptr = strrchr(genbuf, ':')) != NULL)
 			{
 				char *p;
-				
+
 				if ((p = strrchr(genbuf, '\n')) != NULL)
 					*p = '\0';
 				prints(_msg_formosa_15, ++ptr);
@@ -455,7 +475,7 @@ static void login_query()
 		move(18, 0);
 		prints(_msg_formosa_16, MAXACTIVE);
 		oflush();
-		shutdown(0, 2);
+		shutdown(0, SHUT_RDWR);
 		exit(0);
 	}
 
@@ -466,7 +486,7 @@ static void login_query()
 			move(line_err, 0);
 			prints(_msg_formosa_17, 3);
 			oflush();
-			shutdown(0, 2);
+			shutdown(0, SHUT_RDWR);
 			exit(0);
 		}
 
@@ -500,7 +520,7 @@ static void login_query()
   #ifdef GUEST
 			printf(_msg_formosa_23);
 			oflush();
-			shutdown(0, 2);
+			shutdown(0, SHUT_RDWR);
 			exit(0);
   #endif
 #else /* !LOGINASNEW */
@@ -544,7 +564,7 @@ static void login_query()
 
 int Announce()
 {
-	more(WELCOME, TRUE);
+	pmore(WELCOME, TRUE);
 	return C_FULL;
 }
 
@@ -573,7 +593,7 @@ static int count_multi_login(USER_INFO *upent)
 				{
 					outs(_msg_formosa_39);
 					oflush();
-					shutdown(0, 2);
+					shutdown(0, SHUT_RDWR);
 					exit(0);
 				}
 				return 0;
@@ -594,7 +614,7 @@ static int count_multi_login(USER_INFO *upent)
 			      force_leave:
 				prints(_msg_formosa_41, multi_logins);
 				oflush();
-				shutdown(0, 2);
+				shutdown(0, SHUT_RDWR);
 				exit(0);
 			}
 		}
@@ -613,22 +633,46 @@ static void multi_user_check()
 	apply_ulist(count_multi_login);
 }
 
+static int g_argc;
+static char **g_argv;
+
+static void sig_segv(int sig)
+{
+	if (child_pid > 2)
+		kill(child_pid, SIGKILL);
+
+	user_logout(cutmp, &curuser);
+	shutdown(0, SHUT_RDWR);
+
+	if (g_argc) {
+		mod_ps_display(g_argc, g_argv, "[segment fault]");
+		while(1) {
+			sleep(10);
+		}
+	} else {
+		exit(1);
+	}
+}
 
 /*
  * Main function of BBS
  */
-void Formosa(char *host, char *term, int argc, char **argv)
+void Formosa(char *host, int argc, char **argv)
 {
+	g_argc = argc;
+	g_argv = argv;
+	mod_ps_display(argc, argv, "[login]");
+
 	signal(SIGHUP, abort_bbs);
 	signal(SIGBUS, abort_bbs);
 #ifdef SYSV
 	signal(SIGSYS, abort_bbs);
-#endif	
+#endif
 	signal(SIGTERM, abort_bbs);
 	signal(SIGCHLD, SIG_IGN);
 	signal(SIGINT, SIG_IGN);
 	signal(SIGQUIT, SIG_IGN);
-	signal(SIGSEGV, SIG_DFL);
+	signal(SIGSEGV, sig_segv);
 	signal(SIGPIPE, abort_bbs);	/* lthuang */
 	signal(SIGURG, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
@@ -639,7 +683,7 @@ void Formosa(char *host, char *term, int argc, char **argv)
 
 	if (setjmp(byebye))
 	{
-		shutdown(0, 2);
+		shutdown(0, SHUT_RDWR);
 		exit(1);
 	}
 
@@ -654,21 +698,22 @@ void Formosa(char *host, char *term, int argc, char **argv)
 	signal(SIGALRM, saybyebye);
 	alarm(120);
 
-	/* default language is 'chinese' */	
-	lang_init(LANG_CHINESE);	
-	xstrncpy(myfromhost, (host ? host : "local"), sizeof(myfromhost));	
+	/* default language is 'chinese' */
+	lang_init(LANG_CHINESE);
+	xstrncpy(myfromhost, (host ? host : "local"), sizeof(myfromhost));
 	login_query();
+	mod_ps_display(argc, argv, uinfo.userid);
 	/* multi-language message supported */
 	lang_init(curuser.lang);
-	
+
 	/* stop timeout alarm */
 	signal(SIGALRM, SIG_IGN);
 	alarm(0);
-	
+
 #if 0		/* !!! TEST !!! */
 	/* start normal alarm */
 	init_alarm();
-#endif	
+#endif
 
 	/* TODO: write 'bbsd: userid from' to /proc/<pid>/psinfo, argv */
 
@@ -696,16 +741,16 @@ void Formosa(char *host, char *term, int argc, char **argv)
 	}
 
 	/* welcome banner */
-	more(WELCOME0, TRUE);	
+	pmore(WELCOME0, TRUE);
 	/* Announce banner */
 	Announce();
 
 	if (!(curuser.flags[0] & NOTE_FLAG))	/* wnlee */
 		x_viewnote();
-		
+
 	/* new user guide */
 	if (curuser.userlevel <= 3)
-		more(NEWGUIDE, TRUE);
+		pmore(NEWGUIDE, TRUE);
 
 	/* enter main menu */
 	domenu();

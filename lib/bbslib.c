@@ -11,10 +11,13 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
+#include <pwd.h>
+#include <grp.h>
+#include "bbs.h"
 
-#include "bbsconfig.h"
-#include "struct.h"
-#include "libproto.h"
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #ifndef LOCK_EX
 # define LOCK_EX               F_LOCK     /* exclusive lock */
@@ -33,9 +36,9 @@ void bbslog(const char *mode, const char *fmt, ...)
 	va_start(args, fmt);
 #if !HAVE_VSNPRINTF
 	vsprintf(msgbuf, fmt, args);
-#else	
+#else
 	vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
-#endif	
+#endif
 	va_end(args);
 
 	time(&now);
@@ -45,7 +48,7 @@ void bbslog(const char *mode, const char *fmt, ...)
 	sprintf(buf, "%s %.8s: %s\n", timestr, mode, msgbuf);
 #else
 	snprintf(buf, sizeof(buf), "%s %.8s: %s\n", timestr, mode, msgbuf);
-#endif	
+#endif
 	append_record(PATH_BBSLOG, buf, strlen(buf));
 }
 #endif
@@ -94,7 +97,6 @@ void setboardfile(register char *buf, const char *bname, const char *filename)
 		sprintf(buf, "%s/%s", BBSPATH_BOARDS, bname);
 }
 
-
 void setvotefile(register char *buf, const char *bname, const char *filename)
 {
 	if (filename)
@@ -128,12 +130,36 @@ void setmailfile(char *buf, char *userid, const char *filename)
 
 #ifdef IGNORE_CASE
         strtolow(userid);
-#endif	
+#endif
 
 	if (filename)
-		sprintf(buf, "%s/%c/%s/%s", UFNAME_MAIL, c, userid, filename);	
+		sprintf(buf, "%s/%c/%s/%s", UFNAME_MAIL, c, userid, filename);
 	else
 		sprintf(buf, "%s/%c/%s", UFNAME_MAIL, c, userid);
+}
+
+
+#ifndef IGNORE_CASE
+void setnotefile(char *buf, const char *userid, const char *filename)
+#else
+void setnotefile(char *buf, char *userid, const char *filename)
+#endif
+{
+	register unsigned char c = *userid;
+
+	if (isupper(c))
+		c = tolower(c);
+	else if (!islower(c))
+		c = '0';
+
+#ifdef IGNORE_CASE
+        strtolow(userid);
+#endif
+
+	if (filename)
+		sprintf(buf, "%s/%c/%s/%s", BBSPATH_NOTE, c, userid, filename);
+	else
+		sprintf(buf, "%s/%c/%s", BBSPATH_NOTE, c, userid);
 }
 
 
@@ -152,7 +178,7 @@ void setdotfile(register char *buf, const char *dotfile, const char *fname)
 		*ptr-- = '\0';
 	ptr++;
 	if (fname)
-		strcpy(ptr, (*fname == '/') ? fname + 1 : fname);	
+		strcpy(ptr, (*fname == '/') ? fname + 1 : fname);
 	else
 		*ptr = '\0';
 }
@@ -160,34 +186,49 @@ void setdotfile(register char *buf, const char *dotfile, const char *fname)
 
 void init_bbsenv()
 {
-/*
-	if (chdir(HOMEBBS) == -1)
-	{
-		fprintf(stderr, "\ncannot chdir: %s", HOMEBBS);
-		fflush(stderr);
-		exit(-2);
-	}
-*/
-	chdir(HOMEBBS);
-	
-	if (getuid() != BBS_UID)
-	{
-#ifdef CHROOT_BBS	
-		if (chroot(HOMEBBS) == -1 || chdir("/") == -1)
+		struct group *grp = NULL;
+		struct passwd *pwd = NULL;
+		if (chdir(HOMEBBS) == -1)
 		{
-			fprintf(stderr, "\ncannot chroot: %s\n", HOMEBBS);
-			fflush(stderr);
-			exit(-1);
+				fprintf(stderr, "can't chdir: %s\n", HOMEBBS);
+				fflush(stderr);
+				exit(1);
 		}
-#endif		
-		if (setgid(BBS_GID) == -1 || setuid(BBS_UID) == -1)
+		if (NULL == (pwd = getpwnam(BBS_USERNAME)))
 		{
-			fprintf(stderr, "\nplease run this program in bbs\n");
-			fflush(stderr);
-			exit(-1);
+				fprintf(stderr, "can't find username: %s\n", BBS_USERNAME);
+				fflush(stderr);
+				exit(1);
 		}
-	}
-	load_bbsconf();	
+		if (NULL == (grp = getgrnam(BBS_GROUPNAME)))
+		{
+				fprintf(stderr, "can't find groupname: %s\n", BBS_GROUPNAME);
+				fflush(stderr);
+				exit(1);
+		}
+		if (getuid() != pwd->pw_uid) {
+#ifdef CHROOT_BBS
+				if (chroot(HOMEBBS) == -1 || chdir("/") == -1)
+				{
+						fprintf(stderr, "can't chroot: %s\n", HOMEBBS);
+						fflush(stderr);
+						exit(-1);
+				}
+#endif
+				if (setgid(grp->gr_gid) == -1)
+				{
+						fprintf(stderr, "can't setgid\n");
+						fflush(stderr);
+						exit(1);
+				}
+				if (setuid(pwd->pw_uid) == -1)
+				{
+						fprintf(stderr, "can't setuid\n");
+						fflush(stderr);
+						exit(1);
+				}
+		}
+		load_bbsconf();
 }
 
 

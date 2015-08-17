@@ -5,14 +5,6 @@
 #include <sys/stat.h>
 #include "libproto.h"
 
-#ifndef LOCK_EX
-#define LOCK_EX	F_LOCK	/* exclusive lock */
-#define LOCK_UN	F_ULOCK	/* unlock */
-#endif
-
-extern int flock(int fd, int operation);
-
-
 /**
  ** how many records are there in the file
  **/
@@ -50,7 +42,6 @@ long get_num_records_byfd(int fd, int size) 					/* syhu */
     return (st.st_size / size);
 }
 
-
 /**
  ** append a record to file
  **/
@@ -60,8 +51,11 @@ int  append_record(const char filename[], void *record, size_t size)
 
 	if ((fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0600)) > 0)
 	{
-		flock(fd, LOCK_EX);
-		if (write(fd, record, size) != -1)
+		if (myflock(fd, LOCK_EX)) {
+			close(fd);
+			return -1;
+		}
+		if (mywrite(fd, record, size) != -1)
 		{
 			flock(fd, LOCK_UN);
 			close(fd);
@@ -73,34 +67,49 @@ int  append_record(const char filename[], void *record, size_t size)
 	return -1;
 }
 
-
 /**
  ** get the nTH record from the file
  **/
-int   get_record(char *filename, void *rptr, size_t size, unsigned int id)
+int get_record(const char *filename, void *rptr, size_t size, unsigned int id)
 {
 	int fd;
 
-	if ((fd = open(filename, O_RDONLY, 0)) > 0)
+	if ((fd = open(filename, O_RDWR, 0)) > 0)
 	{
+		if (myflock(fd, LOCK_EX)) {
+			close(fd);
+			return -1;
+		}
 		if (lseek(fd, (off_t) ((id - 1) * size), SEEK_SET) != -1)
 		{
-			if (read(fd, rptr, size) == size)
+			if (myread(fd, rptr, size) == size)
 			{
+				flock(fd, LOCK_UN);
 				close(fd);
 				return 0;
 			}
 		}
+		flock(fd, LOCK_UN);
 		close(fd);
 	}
 	return -1;
 }
 
+/**
+ ** get the nTH record by file descriptor
+ **/
+int get_record_byfd(int fd, void *rptr, size_t size, unsigned int id)
+{
+	if ((lseek(fd, (off_t) ((id - 1) * size), SEEK_SET) != -1) &&
+	    (myread(fd, rptr, size) == size))
+			return 0;
+	return -1;
+}
 
 /**
  ** delete the nTH record in file
  **/
-/*ARGUSED*/ 
+/*ARGUSED*/
 int delete_record(char *filename, size_t size, unsigned int id)
 {
 	int fdr, fdw, fd;
@@ -133,7 +142,12 @@ int delete_record(char *filename, size_t size, unsigned int id)
 		return -1;
 	}
 
-	flock(fd, LOCK_EX);
+	if (myflock(fd, LOCK_EX)) {
+		close(fd);
+		close(fdr);
+		close(fdw);
+		return -1;
+	}
 	for (count = 1; read(fdr, delbuf, size) == size; count++)
 	{
 		if (count == id)
@@ -168,26 +182,42 @@ int delete_record(char *filename, size_t size, unsigned int id)
 	return -1;
 }
 
-
 /**
  ** substitute the nTH record in file
- **/ 
+ **/
 int substitute_record(char *filename, void *rptr, size_t size, unsigned int id)
 {
 	int fd;
 
 
-	if ((fd = open(filename, O_WRONLY /* O_CREAT, 0644 */)) > 0)
+	if ((fd = open(filename, O_RDWR | O_CREAT, 0644)) > 0)
 	{
+		if (myflock(fd, LOCK_EX)) {
+			close(fd);
+			return -1;
+		}
 		if (lseek(fd, (off_t) ((id - 1) * size), SEEK_SET) != -1)
 		{
-			if (write(fd, rptr, size) == size)
+			if (mywrite(fd, rptr, size) == size)
 			{
 				close(fd);
 				return 0;
 			}
 		}
+		flock(fd, LOCK_UN);
 		close(fd);
 	}
+	return -1;
+}
+
+/**
+ ** substitute the nTH record by file descriptor
+ **/
+int substitute_record_byfd(int fd, void *rptr, size_t size, unsigned int id)
+{
+	if (lseek(fd, (off_t) ((id - 1) * size), SEEK_SET) != -1)
+		if (mywrite(fd, rptr, size) == size)
+			return 0;
+
 	return -1;
 }

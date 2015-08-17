@@ -3,13 +3,13 @@ mod_uinfo.c             change the bbs-user data and show user info
 */
 
 /**
- **    獨立程式, 在系統直接修改 bbs-user 資料 。 
+ **    獨立程式, 在系統直接修改 bbs-user 資料 。
  **      並可檢視 使用者資料。
- **   
+ **
  **    wnlee@cc.nsysu.edu.tw
  **    lasehu@cc.nsysu.edu.tw
  **
- **/                                              
+ **/
 
 #include "bbs.h"
 
@@ -46,16 +46,24 @@ rebuild(char *id)
 	struct userec user;
 	int fdi, fdp, fd_new, old_num = 0, new_num = 0;
 
-	if ((fdi = open(USERIDX, O_RDONLY | O_CREAT, 0644)) < 0)
+	if ((fdi = open(USERIDX, O_RDWR | O_CREAT, 0644)) < 0)
 		return -1;
-	flock(fdi, LOCK_EX);
-	if ((fdp = open(PASSFILE, O_RDONLY | O_CREAT, 0644)) < 0)
+	if (myflock(fdi, LOCK_EX)) {
+		close(fdi);
+		return -1;
+	}
+	if ((fdp = open(PASSFILE, O_RDWR | O_CREAT, 0644)) < 0)
 	{
 		flock(fdi, LOCK_UN);
 		close(fdi);
 		return -1;
 	}
-	flock(fdp, LOCK_EX);
+	if (myflock(fdp, LOCK_EX)) {
+		flock(fdi, LOCK_UN);
+		close(fdi);
+		close(fdp);
+		return -1;
+	}
 	if ((fd_new = open("conf/useridx.new", O_WRONLY | O_CREAT, 0644)) < 0)
 	{
 		close(fdi);
@@ -87,7 +95,7 @@ rebuild(char *id)
 		if (read(fdp, &user, sizeof(user)) != sizeof(user))
 			break;
 		if (!strcmp(id, user.userid))
-			memset(&user, 0, sizeof(user));	/* fill blank slot into file */		
+			memset(&user, 0, sizeof(user));	/* fill blank slot into file */
 		write(fd_new, &user, sizeof(struct userec));
 		new_num++;
 	}
@@ -278,13 +286,13 @@ main(int argc, char *argv[])
 			udata.ident = 0;
 		else
 			udata.ident = 7;
-		printf("●認證等級 [%d]\n", udata.ident);		
+		printf("●認證等級 [%d]\n", udata.ident);
 	}
 	if (fflg)
 	{
 		udata.flags[0] ^= FORWARD_FLAG;
-		printf("●自動轉寄 [%s]\n", 
-			(udata.flags[0] & FORWARD_FLAG) ? "開啟" : "關閉");		
+		printf("●自動轉寄 [%s]\n",
+			(udata.flags[0] & FORWARD_FLAG) ? "開啟" : "關閉");
 	}
 	if (oflg)
 	{
@@ -297,10 +305,10 @@ main(int argc, char *argv[])
 		udata.uid = uid;
 		printf("●註冊編號 : %d\n", udata.uid);
 	}
-		
+
 	if (update_passwd(&udata) <= 0)
 	{
-		printf("err to write back passwds\n");	
+		printf("err to write back passwds\n");
 		return -1;
 	}
 

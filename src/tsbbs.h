@@ -14,8 +14,8 @@
  *******************************************************************/
 
 /* Option to i_read() powerful readmenu function */
-#define IREAD_BOARD	  0x01 
-#define IREAD_MAIL    0x02    
+#define IREAD_BOARD	  0x01
+#define IREAD_MAIL    0x02
 #define IREAD_ICHECK  0x03
 #define IREAD_IFIND   0x04
 
@@ -32,17 +32,18 @@
 #define C_REDO 0x800
 
 /* Used for the getchar routine select call */
-#define I_TIMEOUT   (0x180)	
+#define I_TIMEOUT   (0x180)
 #define I_OTHERDATA (0x181)
 
-#define SCREEN_SIZE 	(23)    
+#define MAX_SCREEN_SIZE 128
+#define SCREEN_SIZE 	((b_line > MAX_SCREEN_SIZE) ? MAX_SCREEN_SIZE : b_line)
 
 #define TTLEN	60        /* -ToDo- Length of article title */
 
 /*******************************************************************
  *	structure define
  *******************************************************************/
-struct commands {		
+struct commands {
 	char key;
 	unsigned int level;
 	struct commands *comm;
@@ -116,6 +117,7 @@ extern int b_line; /* The bottom line of screen */
  */
 /* admin.c */
 int adminMaintainUser(void);
+int adminDisplayUserLog(void);
 void setskinfile(char *fname, char *boardname, char *skin);
 int adminCreateBoard(void);
 int adminMaintainBoard(void);
@@ -125,6 +127,18 @@ int adminBroadcast(void);
 int adminMailBm(void);
 int adminSyscheck(void);
 int adminListUsers(void);
+#ifdef USE_DELUSER
+/*
+ * Not complete?
+ */
+int adminDeleteUser(void)
+#endif
+#if defined(NSYSUBBS1) || defined(NSYSUBBS3) /* sarek:12/15/2001 */
+int adminCancelUser(void);
+#endif
+#ifndef NSYSUBBS
+int adminSyscheck(void);
+#endif
 /* article.c */
 int title_article(int ent, FILEHEADER *finfo, char *direct);
 int edit_article(int ent, FILEHEADER *finfo, char *direct);
@@ -132,6 +146,7 @@ int reserve_article(int ent, FILEHEADER *finfo, char *direct);
 int read_article(int ent, FILEHEADER *finfo, char *direct);
 int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop, int option);
 int delete_article(int ent, FILEHEADER *finfo, char *direct);
+int bm_pack_article(int ent, FILEHEADER *finfo, char *direct);
 int mail_article(int ent, FILEHEADER *finfo, char *direct);
 int cross_article(int ent, FILEHEADER *finfo, char *direct);
 int push_article(int ent, FILEHEADER *finfo, char *direct);
@@ -141,17 +156,16 @@ int range_tag_article(int ent, FILEHEADER *finfo, char *direct);
 /* board.c */
 int namecomplete_board(BOARDHEADER *bhp, char *data, BOOL simple);
 int select_board(void);
+int NoteBoard(char *userid);
 int Boards(void);
 int Class(void);
 /* chat.c */
 void *xstrdup(const char *str);
-int chat_write(int fd, void *buf);
-int chat_printf(int sd, char *fmt, ...);
 void printchatline(const char *str);
-int mygets(int fd, char *buf, int size);
 int t_chat(void);
 /* chat2.c */
 char *mycrypt(char *pw);
+void printchatline2(const char *str);
 int t_chat2(void);
 /* cursor.c */
 int read_get(char *direct, void *s, int size, int top);
@@ -174,17 +188,21 @@ void read_btitle(void);
 int Select(void);
 int MainRead(void);
 int Read(void);
-int cursor_menu(int y, int x, char *direct, struct one_key *comm, int hdrsize, int *ccur, void (*cm_title)(void), void (*cm_btitle)(void), void (*cm_entry)(int, void *, int, int, int, int), int (*cm_get)(char *, void *, int, int), int (*cm_max)(char *, int), int (*cm_findkey)(char *, void *, int, int), int opt, int autowarp, int rows);
+int cursor_menu(int y, int x, char *direct, struct one_key *comm, int hdrsize, int *ccur, void (*cm_title)(void), void (*cm_btitle)(void), void (*cm_entry)(int, void *, int, int, int, int), int (*cm_get)(char *, void *, int, int), int (*cm_max)(char *, int), int (*cm_findkey)(char *, void *, int, int), int opt, int autowarp);
 /* edit.c */
 int vedit(const char *filename, const char *saveheader, char *bname);
 /* formosa.c */
 void saybyebye(int s);
 void abort_bbs(int s);
 int Announce(void);
-void Formosa(char *host, char *term, int argc, char **argv);
+void Formosa(char *host, int argc, char **argv);
 /* globals.c */
+#ifdef USE_IDENT
 /* ident.c */
 int x_idcheck(void);
+int resend_checkmail(const char *stamp, const char *userid, char *msgbuf);
+int do_manual_confirm(const char *stamp, const char *userid);
+#endif
 /* io.c */
 void oflush(void);
 void output(char *s, int len);
@@ -196,11 +214,11 @@ int igetch(void);
 int getkey(void);
 int igetkey(void);
 void bell(void);
-int getdataln(char *prompt, char *buf, int len, int echo);
-int getdata(int line, int col, char *prompt, char *buf, int len, int echo);
-int getdata_buf(int line, int col, char *prompt, char *buf, int len, int echo);
-int getdata_str(int line, int col, char *prompt, char *buf, int len, int echo, char *prefix);
-
+void drop_input(void);
+int getdataln(const char *prompt, char *buf, int len, int echo);
+int getdata(int line, int col, const char *prompt, char *buf, int len, int echo);
+int getdata_buf(int line, int col, const char *prompt, char *buf, int len, int echo);
+int getdata_str(int line, int col, const char *prompt, char *buf, int len, int echo, char *prefix);
 /* lang.c */
 void lang_init(char lang);
 /* list.c */
@@ -214,6 +232,7 @@ int m_new(void);
 int m_read(void);
 /* main.c */
 int main(int argc, char *argv[]);
+void mod_ps_display(int argc, char *argv[], const char *disp);
 char *telnet(char *term);
 /* menu.c */
 void domenu(void);
@@ -233,10 +252,17 @@ int read_help(void);
 int has_postperm(BOARDHEADER *bh1);
 int PrepareMail(char *fn_src, char *to, char *title);
 int PreparePost(char *fn_src, char *to, char *title, int option, char *postpath);
+int PrepareNote();
 int do_post(int ent, FILEHEADER *finfo, char *direct);
 int treasure_article(int ent, FILEHEADER *finfo, char *direct);
 int mkdir_treasure(int ent, FILEHEADER *finfo, char *direct);
 int xchg_treasure(int ent, FILEHEADER *finfo, char *direct);
+#ifdef USE_PFTERM
+/* pfterm.c */
+#include "pfterm.h"
+/* visio.c */
+void msg(char *fmt, ...);
+#else
 /* screen.c */
 void initscr(void);
 void standoutput(char *buf, int ds, int de, int sso, int eso);
@@ -250,7 +276,7 @@ void standout(void);
 void standend(void);
 void getyx(int *y, int *x);
 int outc(register unsigned char c);
-void outs(register char *str);
+void outs(register const char *str);
 #ifndef USE_VISIO
 void prints(char *fmt, ...);
 #endif
@@ -259,6 +285,21 @@ void scroll(void);
 void rscroll(void);
 void save_screen(void);
 void restore_screen(void);
+#endif
+/* string.c */
+int strat_ansi(int count, const char *s);
+void str_lower(char *t, const char *s);
+void trim(char *buf);
+void chomp(char *src);
+int strip_blank(char *cbuf, char *buf);
+int strat_ansi(int count, const char *s);
+int strlen_noansi(const char *s);
+void strip_nonebig5(unsigned char *str, int maxlen);
+int DBCS_RemoveIntrEscape(unsigned char *buf, int *len);
+int DBCS_Status(const char *dbcstr, int pos);
+char *DBCS_strcasestr(const char* pool, const char *ptr);
+int invalid_pname(const char *str);
+int is_number(const char *p);
 /* stuff.c */
 int pressreturn(void);
 int showmsg(char *text);
@@ -269,12 +310,12 @@ void bbsd_log_write(char *mode, char *fmt, ...);
 void bbsd_log_close(void);
 int Goodbye(void);
 void free_wlist(struct word **wtop, void (*freefunc)(void *));
-void add_wlist(struct word **wtop, char *str, void *(*addfunc)(char *));
+void add_wlist(struct word **wtop, char *str, void *(*addfunc)(const char *));
 int cmp_wlist(struct word *wtop, char *str, int (*cmpfunc)(const char *, const char *));
 struct word *cmpd_wlist(struct word **pwtop, char *str, int (*cmpfunc)(const char *, const char *), void (*freefunc)(void *));
 int namecomplete(struct word *toplev, char data[], BOOL simple);
 void update_umode(int mode);
-void *malloc_str(char *str);
+void *malloc_str(const char *str);
 /* talk.c */
 void friendAdd(char *ident, char type);
 void friendDelete(char *ident, char type);
@@ -297,9 +338,17 @@ int msq_reply(void);
 int t_review(void);
 int t_msq(void);
 int t_fmsq(void);
+/* telnet.c */
+#ifdef DETECT_CLIENT
+void UpdateClientCode(unsigned char c); // see mbbsd.c
+#endif
+unsigned int telnet_handler(unsigned char c);
+void telnet_init(void);
+ssize_t tty_read(unsigned char *buf, size_t max);
 /* term.c */
 void init_vtty(void);
 int outcf(char ch);
+void term_resize(int w, int h);
 int term_init(char *term);
 void do_move(int destcol, int destline, int (*outc)(char));
 /* vote.c */
@@ -307,6 +356,7 @@ void DisplayNewVoteMesg(void);
 void CheckNewSysVote(void);
 int v_board(void);
 /* xyz.c */
+char *get_ident(USEREC *urcIdent);
 int x_info(void);
 int x_date(void);
 int x_signature(void);
@@ -315,9 +365,14 @@ int x_plan(void);
 int x_override(void);
 int x_blacklist(void);
 int set_user_info(char *userid);
+int display_user_log(const char *userid);
+int display_user_register(const char *userid);
 int x_uflag(void);
 int x_bakpro(void);
 int x_viewnote(void);
+#ifdef USE_MULTI_LANGUAGE
+int x_lang(void);
+#endif
 
 #define ROWSIZE (SCREEN_SIZE - 4)
 

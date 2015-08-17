@@ -5,11 +5,11 @@
 # This Makefile for "@systype@"
 #
 # The home directory for the user 'bbs'
-HOMEBBS    = @prefix@
+HOMEBBS    = @HOMEBBS@
 
-DEFINES    = @OS_DEF@ $(SITE_DEF)
+DEFINES    = @OS_DEF@ $(SITE_DEF) @DEFS@
 CC         = @CC@
-CFLAGS	   := @CFLAGS@ -Wall -I../../include -I../../lib -I../
+CFLAGS	   := @CFLAGS@ -Wall -I../../include -I../../lib -I../ -I../..
 LDLIBS	   = @LIBS@
 LDLIBS     := $(filter-out -ltermcap,$(LDLIBS))
 

@@ -1,13 +1,14 @@
-################################################
-# Makefile for Formosa BBS v1.4.0              #
-################################################
-
-SUBDIRS := lib src csbbs util bbsweb bbsweb/util
-CLEANDIRS := $(SUBDIRS) src/util
-PHONY_TARGETS := all debug clean distclean install install_once update
-VERSION := 1.4.0
-HOMEBBS := @prefix@
+# Formosa BBS Makefile
+SHELL= /bin/sh
+SUBDIRS := lib src util bbsweb bbsweb/util docs
+CLEANDIRS := $(SUBDIRS) src/util csbbs
+PHONY_TARGETS := all debug clean distclean install install_once update kill_process
+VERSION := @PACKAGE_VERSION@
+HOMEBBS := @HOMEBBS@
 MAKE    := @MAKE@
+BBS_USERNAME	:= @BBS_USERNAME@
+BBS_GROUPNAME	:= @BBS_GROUPNAME@
+BBS_TCP_PORT	:= @BBS_TCP_PORT@
 
 .PHONY: $(SUBDIRS) $(CLEANDIRS) $(CLEANDIRS_CLEAN) $(PHONY_TARGETS)
 
@@ -19,13 +20,13 @@ $(SUBDIRS):
 debug: target := debug
 debug: $(SUBDIRS)
 
-update: install
-	-kill `cat /tmp/formosa.23`
-	$(HOMEBBS)/bin/bbsd 23
+kill_process:
+	-kill `cat /tmp/formosa.@BBS_TCP_PORT@`
+	-killall bbsweb
 
-config:
-	./autogen.sh
-	./configure
+update: kill_process install
+	$(HOMEBBS)/bin/bbsd @BBS_TCP_PORT@
+	$(HOMEBBS)/bin/bbsweb
 
 config_bbs3:
 	./autogen.sh
@@ -46,13 +47,18 @@ clean: $(CLEANDIRS_CLEAN)
 distclean: clean
 	@for i in $(CLEANDIRS); do \
 		echo  "Dist Cleaning $$i ...";\
-		(cd $$i; rm -f *~ DEADJOE core a.out Makefile proto.h;) \
+		(cd $$i; rm -f *~ DEADJOE core a.out Makefile;) \
 	done
-#	@(cd innbbsd; ${MAKE} clean; cd innd; ${MAKE} clean)
-#	@rm -f bbshome/HTML/*.html
+	@-rm -f src/globals.c
 	@-rm -f *~
-	@-rm -f configure config.cache config.status config.log
+	@-rm -f configure config.cache config.status config.log \
+		config.h config.h.in
+	@-rm -rf autom4te.cache
 
 install: target := install
-install: $(SUBDIRS)
+install: $(HOMEBBS)/bin $(SUBDIRS)
+
+$(HOMEBBS)/bin:
+	mkdir -p $@
+	chown -R @BBS_USERNAME@:@BBS_GROUPNAME@ $@
 

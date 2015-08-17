@@ -4,10 +4,8 @@
 #include "screen.h"
 #include <stdarg.h>
 
-extern int tputs(char *, int, int (*)(char));
-
 extern int dumb_term;
-BOOL show_ansi = TRUE;
+extern BOOL show_ansi = TRUE;
 
 extern char clearbuf[];
 extern char cleolbuf[];
@@ -21,9 +19,6 @@ extern int strtstandoutlen;
 extern int endstandoutlen;
 
 extern int automargins;
-
-extern int ochar(char ch);
-extern void output();
 
 #define o_clear()     output(clearbuf,clearbuflen)
 #define o_cleol()     output(cleolbuf,cleolbuflen)
@@ -56,7 +51,7 @@ void initscr()
 		big_picture = (struct screenline *) calloc(t_lines,
 						   sizeof(struct screenline));
 		cur_slp = &(big_picture[0]);
-		clear();		
+		clear();
 	}
 }
 
@@ -69,7 +64,7 @@ int resizeterm(int w, int h)
     w = MAX(80, MIN(200, w));
 
     if (h > t_lines && big_picture) {
-	new_picture = (struct screenline *) 
+	new_picture = (struct screenline *)
 		calloc(h, sizeof(struct screenline));
 	if (new_picture == NULL) {
 	    return 0;
@@ -482,8 +477,8 @@ int outc(register unsigned char c)
 		}
 	}
 	lastc = c;
-#endif		
-	
+#endif
+
 	if (cur_pos >= cur_slp->len)
 	{
 		register int i;
@@ -553,7 +548,7 @@ outns(const char *str, int n)
 }
 
 
-void outs(register char *str)
+void outs(register const char *str)
 {
 	while (*str != '\0')
 		outc(*str++);
@@ -569,9 +564,9 @@ void prints(char *fmt, ...)
 	va_start(args, fmt);
 #if !HAVE_VSNPRINTF
 	vsprintf(buff, fmt, args);
-#else	
+#else
 	vsnprintf(buff, sizeof(buff), fmt, args);
-#endif	
+#endif
 	va_end(args);
 	outs(buff);
 }
@@ -586,9 +581,9 @@ void msg(char *fmt, ...)			/* by lthuang */
 	va_start(args, fmt);
 #if !HAVE_VSNPRINTF
 	vsprintf(buff, fmt, args);
-#else	
+#else
 	vsnprintf(buff, sizeof(buff), fmt, args);
-#endif	
+#endif
 	va_end(args);
 	move(b_line, 0);
 	clrtoeol();
@@ -631,13 +626,13 @@ void save_screen()
 {
 	struct screenline *slp1;
 	struct screenline *slp2;
-	
-	slp1 = &(big_picture[(t_lines - 2 + roll) % t_lines]);	
-	slp2 = &(big_picture[(t_lines - 1 + roll) % t_lines]);	
+
+	slp1 = &(big_picture[(t_lines - 2 + roll) % t_lines]);
+	slp2 = &(big_picture[(t_lines - 1 + roll) % t_lines]);
 	memcpy(save_big_picture, slp1, sizeof(struct screenline));
 	memcpy(save_big_picture + 1, slp2, sizeof(struct screenline));
-	
-	getyx(&save_y, &save_x);	
+
+	getyx(&save_y, &save_x);
 }
 
 
@@ -645,10 +640,10 @@ void restore_screen()
 {
 	struct screenline *slp1;
 	struct screenline *slp2;
-	
-	slp1 = &(big_picture[(t_lines - 2 + roll) % t_lines]);	
-	slp2 = &(big_picture[(t_lines - 1 + roll) % t_lines]);	
-	
+
+	slp1 = &(big_picture[(t_lines - 2 + roll) % t_lines]);
+	slp2 = &(big_picture[(t_lines - 1 + roll) % t_lines]);
+
 	memcpy(slp1, save_big_picture, sizeof(struct screenline));
 	memcpy(slp2, save_big_picture + 1, sizeof(struct screenline));
 

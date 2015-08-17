@@ -3,7 +3,7 @@
 #define _BBS_STRUCT_H_
 
 
-#define PATHLEN    255	/* max # of characters in a path name */
+#define PATHLEN		255	/* max # of characters in a path name */
 #define STRLEN		80	/* Length of most string data */
 #define IDLEN		13	/* Length of userids */
 #define UNAMELEN	21	/* Length of username */
@@ -24,6 +24,10 @@ struct useridx {	/* Structure used in .USERIDX */
 #define STRIP_ANSI_FLAG	0x20	/* true if turned ON ANSI filter by sarek:12/26/2000 */
 #define	YANK_FLAG       0x40    /* the board list yank flag, true if yank out */
 #define	COLOR_FLAG      0x80    /* color mode or black/white mode, ture is b/w*/
+
+/* these are flags in userec.flags[1] */
+#define SCREEN_FLAG	0x01    /* Screen wrong character work around */
+#define REJMAIL_FLAG	0x02    /* Do not receive e-mail from out side */
 
 /* used in ctype */
 #define CTYPE_CSBBS     0
@@ -90,7 +94,7 @@ typedef struct _msq
 #define MAX_MSQ 3
 
 
-typedef struct user_info {	
+typedef struct user_info {
 	int active;				/* When allocated this field is true */
 	unsigned int uid;		/* Used to find user name entry in passwd file */
 	pid_t pid;				/* kill() is used to notify user of talk request */
@@ -102,7 +106,7 @@ typedef struct user_info {
 	int ever_delete_mail;	/* Ever delete mail this time ? */
 	time_t login_time;		/* lthuang: time when entry was made */
 	time_t idle_time;		/* lthuang: idle time in minute */
-	char destid[IDLEN];		/* talk parner user's id name */	
+	char destid[IDLEN];		/* talk parner user's id name */
 	char userid[IDLEN];
 	char username[UNAMELEN];	/* user nickname */
 	char from[HOSTLEN];		/* machine name the user called in from */
@@ -112,13 +116,13 @@ typedef struct user_info {
 	int msq_last;
 	MSQ msqs[MAX_MSQ];
 #if 1
-	/* speed-up for online user query */	
+	/* speed-up for online user query */
 	unsigned int userlevel;
 	unsigned int numposts;
 	unsigned int numlogins;
 	time_t lastlogin;
-	char lasthost[HOSTLEN];	
-	char ident;	
+	char lasthost[HOSTLEN];
+	char ident;
 	char is_new_mail;
 	unsigned char flags[2];
 #endif
@@ -131,7 +135,7 @@ typedef struct user_info {
 } USER_INFO;
 
 
-/* 
+/*
  * semaphore
  */
 #define SEM_ENTR	-1	/* Enter semaphore, lock for exclusive use */
@@ -139,9 +143,6 @@ typedef struct user_info {
 #if 0
 #define SEM_RSET	0	/* Reset semaphore */
 #endif
-
-#define UTMPSEM_KEY 1129
-
 
 /* Flags used in fileheader accessed */
 #define FILE_READ   0x01	/* mail readed*/
@@ -156,6 +157,22 @@ typedef struct user_info {
 #endif
 
 /*
+ * Informations for each board/mailbox
+ */
+struct infoheader {
+	int last_postno;
+	union {
+		unsigned char for32bit[8];
+		time_t last_mtime;
+	};
+	char last_filename[52];
+} __attribute__ ((packed));
+
+typedef struct infoheader INFOHEADER;
+
+#define IH_SIZE    (sizeof(struct infoheader))
+
+/*
  * FHF_* for FILEHEADER.flags
  */
 #define PUSH_ERR	9999
@@ -166,21 +183,26 @@ typedef struct user_info {
 #define SCORE_MIN	-255
 
 struct fileheader {
-	char filename[STRLEN-8-12-4-4];
-	int thrheadpos;			/* syhu: pos of thread head in .THREADHEAD */
-	int thrpostidx;			/* syhu: relative idx of this post in .THREADPOST */
-	char date[12];			/* yy/mm/dd */
-	int  postno;			/* unique no. of post */
-	char ident;			/* ident of owner */
+	char filename[52];
+	int thrheadpos;                 /* syhu: pos of thread head in .THREADHEAD */
+	int thrpostidx;                 /* syhu: relative idx of this post in .THREADPOST */
+	char date[12];                  /* yy/mm/dd */
+	int  postno;                    /* unique no. of post */
+	char ident;                     /* ident of owner */
 	unsigned char pushcnt;
 	unsigned char flags;
-	char unused_ch;
-	char owner[STRLEN];
-	char title[STRLEN-IDLEN];
+	char unused1;
+	char owner[72];
+	union {
+		unsigned char for32bit[8];
+		time_t mtime;
+	};
+	char title[67];
 	char delby[IDLEN];
 	unsigned int level;
 	unsigned char accessed;
-};
+	unsigned char unused2[3];
+} __attribute__ ((packed));
 
 typedef struct fileheader FILEHEADER;
 
@@ -206,15 +228,15 @@ typedef struct {
 
 typedef struct {
     char            filename[STRLEN-8-12-4*5];
- 	int			 	lastfollowidx;			/* syhu: last follow-up to curr */ 
- 	int				nextfollowidx;			/* syhu: follow-up to current */ 
+ 	int			 	lastfollowidx;			/* syhu: last follow-up to curr */
+ 	int				nextfollowidx;			/* syhu: follow-up to current */
  	int				nextpostidx;			/* syhu: same level with current */
 	int				thrheadpos;				/* syhu: position in .THREADHEAD */
     int				thrpostidx;				/* syhu: index in .THREADPOSTS */
     char            date[12];               /* yy/mm/dd */
     int             postno;                 /* unique no. of post */
     char            ident;                  /* ident of owner */
-    char            unused_str1[3]; 
+    char            unused_str1[3];
     char            owner[STRLEN];
     char            title[STRLEN-IDLEN];
     char            delby[IDLEN];
@@ -225,7 +247,7 @@ typedef struct {
 #define THRHEADHDR_SIZE     sizeof(THRHEADHEADER)
 #define THRPOSTHDR_SIZE     sizeof(THRPOSTHEADER)
 
- 
+
 
 #define BNAMELEN   17
 #define CBNAMELEN  36
@@ -241,20 +263,19 @@ typedef struct {
 #define BRD_ACL		0x80   /* access control */
 
 struct boardheader {
-	char filename[BNAMELEN+3];
-	time_t	rewind_time;      /* lasehu: last refresh boardrc time */
-	unsigned int bid;         /* lasehu: board unique number, implies the position in .BOARDS */
-	time_t  ctime;            /* lthuang: time when board created */
-	char unused1[STRLEN-BNAMELEN-18];
-	char class;               /* 板面分類 */
-	char unused_type;         /* 轉信類別  */
-	unsigned char brdtype;    /* 看板屬性旗標 */
-	char owner[5*IDLEN+15];   /* TODO: max 5 bmas, each length is IDLEN */
-	char title[CBNAMELEN+4];  /* description of board */
-	int last_postno;
-	char unused2[STRLEN-CBNAMELEN-8] ; 
-	unsigned int level;	
-};
+        char filename[BNAMELEN+3];
+        char unused1[4];
+        unsigned int bid;         /* lasehu: board unique number, implies the position in .BOARDS */
+        time_t  ctime;            /* lthuang: time when board created */
+        char unused2[45];
+        char bclass;              /* 板面分類 */
+        char unused_type;         /* 轉信類別  */
+        unsigned char brdtype;    /* 看板屬性旗標 */
+        char owner[5*IDLEN+15];   /* TODO: max 5 bmas, each length is IDLEN */
+        char title[CBNAMELEN+4];  /* description of board */
+        char unused3[40] ;
+        unsigned int level;
+} __attribute__ ((packed));
 
 typedef struct boardheader BOARDHEADER;
 
@@ -285,45 +306,54 @@ typedef struct classheader {
 
 #define CH_SIZE (sizeof(struct classheader))
 
-
-#define BRC_MAXNUM      (500)
-#define BRC_REALMAXNUM	(BRC_MAXNUM*8)
+struct  BoardList {         /* lmj@cc.nsysu.edu.tw */
+	BOARDHEADER *bhr;
+	struct board_t *binfr;
+	int     cid ;
+	int     bcur ;              /* 上次看到第幾篇 */
+	unsigned char	enter_cnt ;	    /* 拜訪某看板次數 */
+#ifdef USE_VOTE
+	unsigned char	voting ;         /* 看板是否正進行投票中 */
+#endif
+};
 
 /*
  * record of whether board posts have been read or not
  */
-struct readrc {	
+#define BRC_MAXNUM      (500)
+#define BRC_REALMAXNUM	(BRC_MAXNUM*8)
+struct readrc {
 	unsigned int  bid;
-	unsigned char rlist[BRC_MAXNUM]; 
+	unsigned char rlist[BRC_MAXNUM];
 	time_t	mtime;
 	time_t  unused;
 };	/* size: 512 bytes */
 
 
-/* 
- * record of user which ever visit our site 
+/*
+ * record of user which ever visit our site
  */
 struct visitor {
 	char userid[IDLEN];
-	char ctype; 
-	char logout;       
+	char ctype;
+	char logout;
 	time_t when;
 	char from[HOSTLEN];
 };
 
 
-/* 
- * Dynamic Advertisement - MenuShow 
+/*
+ * Dynamic Advertisement - MenuShow
  */
 #define MENUSHOW_KEY       0x1229	   /* share memory key */
 #define MENUSHOW_SIZE      128	   /* 要做幾篇 post 到 share memory */
 #define MENUSHOW_BODY      1024    /* 做多大的本文段落到 share memory */
 #define MENUSHOW_DEFAULT   "treasure/main-menu" /* if no MENUSHOW_FILE */
- 
+
 struct MSList {
 	char filename[PATHLEN];
 	char owner[STRLEN];
-	char title[STRLEN]; 
+	char title[STRLEN];
 	char body[MENUSHOW_BODY];
 };
 
@@ -333,11 +363,11 @@ struct MenuShowShm {
 };
 
 
-/* 
- * notepad 
+/*
+ * notepad
  */
 #define NOTE_SIZE   200 /* 留言版篇數限制 */
- 
+
 typedef struct notedata
 {
 	time_t date;                /* 格林威治秒 */
@@ -349,10 +379,10 @@ typedef struct notedata
 
 
 
-/* 
- * used in user_login() 
+/*
+ * used in user_login()
  */
-enum ULOGIN { 
+enum ULOGIN {
 	ULOGIN_OK       = 0,
     ULOGIN_NOSPC    = -1,
     ULOGIN_NOENT    = -2,
@@ -364,8 +394,8 @@ enum ULOGIN {
 #define REPLY_LEN        (4)
 
 
-/* 
- * keyword of personal files 
+/*
+ * keyword of personal files
  */
 #define UFNAME_IRCRC		"ircrc"
 #define UFNAME_OVERRIDES	"overrides"
@@ -378,18 +408,20 @@ enum ULOGIN {
 #define UFNAME_SIGNATURES	"signatures"
 #define UFNAME_ZAPRC		"zaprc"
 #define UFNAME_IDENT		"ident"
+#define UFNAME_IDENT_STAMP	"identstamp"
 
 #define UFNAME_EDIT		"edit"
 #define UFNAME_MAIL		"mail"
 #define UFNAME_WRITE		"msq"
 
 
-/* 
- * 系統資料檔案子目錄 
+/*
+ * 系統資料檔案子目錄
  */
 #define BBSPATH_DELUSER  "deluser"   /*存放被刪除之帳號密碼檔目錄 */
 #define BBSPATH_BOARDS   "boards"    /* 板面目錄 */
 #define BBSPATH_TREASURE "treasure"  /* 精華區目錄 */
+#define BBSPATH_NOTE     "note"      /* 短箋 */
 #define BBSPATH_REALUSER "realuser"  /* User認證編碼資料目錄 */
 #define BBSPATH_IDENT    "ID"
 
@@ -398,6 +430,7 @@ enum ULOGIN {
  * 路徑與檔名定義區
  */
 #define DIR_REC      ".DIR"
+#define INFO_REC     ".INFO"
 #define THREAD_REC      ".THREADPOST"       /* syhu: thread posts records */
 #define THREAD_HEAD_REC ".THREADHEAD"       /* syhu: thread head records */
 #define PASSFILE     "conf/.PASSWDS"
@@ -408,12 +441,14 @@ enum ULOGIN {
 
 
 #define BM_WELCOME   ".bm_welcome"
-#define BM_ASSISTANT ".bm_assistant"    
+#define BM_ASSISTANT ".bm_assistant"
 
 #define BOARD_HELP   "doc/BOARD_HELP"
 #define READ_HELP    "doc/READ_HELP"
+#define ID_READ_HELP "doc/ID_READ_HELP"
 #define MAIL_HELP    "doc/MAIL_HELP"
 #define EDIT_HELP    "doc/EDIT_HELP"
+#define PMORE_HELP   "doc/PMORE_HELP"
 #define WELCOME0     "doc/Welcome0"
 #define WELCOME      "doc/Welcome"
 #define NEWGUIDE     "doc/NewGuide"

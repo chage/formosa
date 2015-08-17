@@ -5,9 +5,9 @@
 # This Makefile for "@systype@"
 
 OSTYPE    = @systype@
-DEFINES   = @OS_DEF@ $(SITE_DEF)
+DEFINES   = @OS_DEF@ $(SITE_DEF) @DEFS@
 CC        = @CC@
-CFLAGS	  = @CFLAGS@ -I. -I.. -I../include
+CFLAGS	  = @CFLAGS@ -I. -I.. -I../include -Wall
 MAKE      = @MAKE@
 
 ifeq (-DANIMEBBS,$(SITE_DEF))
@@ -29,9 +29,10 @@ endif
 
 
 LIBSRCS   = ap_board.c misc.c conf.c bbslib.c modetype.c \
-            mod_article.c mod_board.c mod_mail.c mod_net.c \
-            mod_pass.c mod_post.c mod_readrc.c mod_record.c mod_sem.c \
-            mod_shm.c mod_talk.c mod_user.c mod_zap.c 
+            mod_article.c mod_board.c mod_crosscheck.c mod_mail.c \
+	    mod_net.c mod_pass.c mod_post.c mod_readrc.c mod_record.c \
+	    mod_sem.c mod_shm.c mod_talk.c mod_user.c mod_zap.c mod_ident.c\
+	    lib_mail.c lib_str.c
 
 ifeq ($(OSTYPE), LINUX)
   LIBSRCS += strlcat.c strlcpy.c

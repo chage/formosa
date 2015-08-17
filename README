@@ -1,27 +1,27 @@
+README
+======
 
 DOCUMENTATION
 --------------
 
 Please see README or Makefile for document :)
 
-Now, some document are provided, in HTML format, in the manual/
-directory. For the up-to-date document, visit us on the WWW, at
-<URL:http://ftp.nsysu.edu.tw/docs/>.
+For the up-to-date document, visit us on the WWW, at
+<URL:http://formosabbs.blogspot.com/>.
 
 
 NEW INSTALLATIONS
 ------------------
 
-Now, our porgrams support several Un*X OS, eg: SunOS, Solaris 2.x,
-IBM AIX, Linux, FreeBSD. You can get the complete package from our
-ftp site at
-<URL:ftp://ftp.nsysu.edu.tw/NSYSU/BBS/>.
+Now, our porgrams support several Un*X OS, eg: Linux, FreeBSD,
+MacOS, Solaris.
 
-The latest version is 1.1.2, the filename is 
-<URL:ftp//ftp.nsysu.edu.tw/NSYSU/BBS/FormosaBBS-1.3.0-bin.tar.gz>.
+The latest version we are working on is 1.5-current. You can
+download the source codes from:
+<URL:http://github.com/pigfoot/formosa/tree/master>.
 
-NOTE: Please read 'INSTALL' for detail, 'QuickStart' for few
-      step in installations.
+NOTE: Please read 'INSTALL' for detail, 'QUICKSTART' for few
+      steps in installations.
 
 
 DIRECTORIES
@@ -39,25 +39,25 @@ DIRECTORIES
 FREEBSD
 --------
 
-1. If you want to set the bbs in chroot environment, 
-   you need: 
-   
+1. If you want to set the bbs in chroot environment,
+   you'll need:
+
     /usr/share/misc/termcap
     /usr/share/misc/termcap.db
-    
-   just copy or mount these file onto the bbs home directory.
 
-2.  ## please use des-crypt ##
+   Just copy or mount these file onto the bbs home directory.
 
-   Because FreeBSD default use md5-crypt, not des-crypt, 
-   with our bbs program, please use des-crypt, you need not
-   change your system library, just take a copy of 'libdescrypt.a',
-   when linking the bbs program, make the lib file visible.
+2.  ## Please use des-crypt ##
+
+   Because FreeBSD by default uses md5-crypt, not des-crypt,
+   with our bbs program, please use des-crypt. You need not
+   change your system library. Just take a copy of 'libdescrypt.a'.
+   When linking the bbs program, make the lib file visible.
 
 
 FEEDBACK
 ---------
 
-If you have any other feedback or comments, please mail to
+If you have any feedback or comments, please mail to
 
-  formosa@cdpa.nsysu.edu.tw
+  formosabbs@googlegroups.com

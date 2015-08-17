@@ -5,15 +5,14 @@
 #include "bbs.h"
 #include "tsbbs.h"
 
-
-extern char *genpasswd();
 extern BOOL show_ansi;
+extern BOOL fix_screen;
 
 #ifdef NSYSUBBS
 char *show_id = "";
 int n_field = 0;
 
-int show_bm(BOARDHEADER *bhentp)
+static int show_bm(BOARDHEADER *bhentp)
 {
 	if (!strcmp(bhentp->owner, show_id))
 	{
@@ -29,7 +28,7 @@ int show_bm(BOARDHEADER *bhentp)
 char *get_ident(USEREC *urcIdent)
 {
 	static char iemail[STRLEN];
-	FILE *fp;	
+	FILE *fp;
 
 
 	iemail[0] = '\0';
@@ -99,6 +98,7 @@ static void show_user_info(USEREC *urcPerson)
 	outs(_msg_xyz_31);
 	outs("\n1) ");
 	prints(_msg_xyz_7, urcPerson->username);
+	outs(ANSI_RESET);
 
 	outs("\n2) ");
 	prints(_msg_xyz_8, urcPerson->email);
@@ -135,7 +135,7 @@ static void show_user_info(USEREC *urcPerson)
 	if (HAS_PERM(PERM_SYSOP) && urcPerson->ident == 7)
 	{
 		char *iemail;
-		
+
 		if ((iemail = get_ident(urcPerson)) != NULL)
 			prints("\n   認證資訊 : %s", iemail);
 	}
@@ -385,7 +385,7 @@ int x_plan()
 	{
 		move(13, 0);
 		outs("抱歉,目前此功\能只提供給已通過身份認證者.");
-		getkey();  
+		getkey();
 		return C_FULL;
 	}
 	else
@@ -404,7 +404,7 @@ static int show_array(struct array *a)
 	move(2, 0);
 	clrtobot();
 
-	for (cbegin = a->ids; 
+	for (cbegin = a->ids;
 		cbegin - a->ids < a->size; cbegin = cend + 1)
 	{
 		for (cend = cbegin; *cend; cend++)
@@ -520,7 +520,6 @@ int x_blacklist()
         return C_FULL;
 }
 
-/*ARGUSED */
 int set_user_info(char *userid)
 {
 	char buf[STRLEN];
@@ -545,8 +544,9 @@ int set_user_info(char *userid)
 
 	show_user_info(&urcOld);
 
+	move(16, 0);
 	outs(_msg_not_sure_modify);
-	getdata(0, 0, NULL, buf, 2, ECHONOSP | XLCASE);
+	getdata(16, strlen(_msg_not_sure_modify), NULL, buf, 2, ECHONOSP | XLCASE);
 	if (buf[0] != 'y')
 		return 0;
 
@@ -576,7 +576,7 @@ XECHO, urcNew.fakeuserid);
                                 showmsg("更動的 ID 字母必須與原 ID 相同.");
                         break;
 #endif
-			move(13, 0);			
+			move(13, 0);
 			outs("應站務人員要求,本功\能目前關閉.");
 			getkey();
 			break;
@@ -604,16 +604,16 @@ XECHO, urcNew.fakeuserid);
 			}
 			break;
 		case '1':
-#if 1		
-#if defined(NSYSUBBS1) || defined(KHBBS)	//kmwang: 20000605: 高師資教要求		
+#if 1
+#if defined(NSYSUBBS1) || defined(KHBBS)	//kmwang: 20000605: 高師資教要求
 			if (urcNew.ident != 7)
 			{
-				move(13, 0);			
+				move(13, 0);
 				outs("抱歉,目前此功\能只提供給已通過身份認證者.");
 				getkey();
 				break;
 			}
-#endif			
+#endif
 #endif
 			/* set username */
 			if (getdata_str(y + buf[0], 21, "\0", buf, sizeof(urcNew.username),
@@ -657,7 +657,7 @@ XECHO, urcNew.fakeuserid);
 #endif
 			}
 			move(6, 0);
-			prints(_msg_xyz_27, 
+			prints(_msg_xyz_27,
 				(urcNew.flags[0] & FORWARD_FLAG) ? "啟動" : "關閉");
 			break;
 		default:
@@ -667,7 +667,7 @@ XECHO, urcNew.fakeuserid);
 				/* set userlevel */
 			{
 				int ulevel;
-				
+
 				sprintf(temp, "%d", urcNew.userlevel);
 				getdata_str(y + buf[0], 14, "\0", buf, 4, ECHONOSP, temp);
 				if ((ulevel = atoi(buf)) != 0)
@@ -714,9 +714,9 @@ XECHO, urcNew.fakeuserid);
 				if (strcmp(userid, curuser.userid))
 					bbsd_log_write("MODUSER", "%04X %s", bits, userid);
 /*
-				else 
+				else
 					bbsd_log_write("SETUSER", "%04X", bits);
-*/					
+*/
 #endif
 				showmsg(_msg_finish);
 				return 1;
@@ -729,13 +729,44 @@ XECHO, urcNew.fakeuserid);
 	return 0;
 }
 
+int display_user_log(const char *userid)
+{
+	char fn_logfile[PATHLEN];
+
+	if (!userid || userid[0] == '\0')
+		return -1;
+
+#ifdef IGNORE_CASE
+        strtolow(userid);
+#endif
+	sethomefile(fn_logfile, userid, UFNAME_RECORDS);
+
+	return more(fn_logfile, TRUE);
+}
+
+#ifdef USE_IDENT
+int display_user_register(const char *userid)
+{
+	char fn_regfile[PATHLEN];
+
+	if (!userid || userid[0] == '\0')
+		return -1;
+
+#ifdef IGNORE_CASE
+        strtolow(userid);
+#endif
+	get_realuser_path(fn_regfile, userid);
+
+	return more(fn_regfile, TRUE);
+}
+#endif
 
 int x_uflag()
 {
-	int i, j;
-	unsigned char *pbits = &(curuser.flags[0]);
+	int i, j, k;
+	unsigned char *pbits;
 
-#define MAX_UFLAG 8
+#define MAX_UFLAG 10
 
 	char *uflag[MAX_UFLAG] =
 	{
@@ -745,23 +776,26 @@ int x_uflag()
 		"不用簽名檔",
 		"不看留言板",
 		"不看彩色代稱",
-		"不引入全部看板",		
-		"不用彩色"
+		"不引入全部看板",
+		"不用彩色",
+		"Screen修正",
+		"拒收站外信"
 	};
-
 
 	for (;;)
 	{
 		move(2, 0);
 		clrtobot();
 
-		for (i = 0, j = 1; i < MAX_UFLAG; i++, j <<= 1)
+		for (i = 0, j = 1; i < MAX_UFLAG; ++i, j <<= 1)
 		{
 			if (!HAS_PERM(PERM_SYSOP) && (j & CLOAK_FLAG))
 				continue;
 
+			pbits = &(curuser.flags[i / 8]);
+			for (k = j; k >= 0x100; k >>= 8);
 			prints("(%c) %-14.14s : %s\n", 'a' + i, uflag[i],
-			       (*pbits & j ? "Yes" : "No "));
+			       (*pbits & k ? "Yes" : "No "));
 		}
 
 		if (!getdata(b_line, 0, _msg_xyz_36, genbuf, 2, ECHONOSP))
@@ -774,9 +808,10 @@ int x_uflag()
 			if (!HAS_PERM(PERM_SYSOP) && (j & CLOAK_FLAG))
 				continue;
 
-			*pbits ^= j;
+			pbits = &(curuser.flags[i / 8]);
+			for (k = j; k >= 0x100; k >>= 8);
+			*pbits ^= k;
 		}
-
 	}
 
 	if (curuser.flags[0] & COLOR_FLAG)
@@ -796,9 +831,14 @@ int x_uflag()
                 strip_ansi = FALSE;
 	/* sarek:01/02/2001:above */
 
+	if (curuser.flags[1] & SCREEN_FLAG)
+		fix_screen = TRUE;
+	else
+		fix_screen = FALSE;
+
 	update_ulist(cutmp, &uinfo);
 
-/*	update_passwd(&curuser); */
+	update_passwd(&curuser);
 
 	return C_FULL;
 }
@@ -814,7 +854,7 @@ int x_bakpro()	/* by kmwang */
 	if ( igetkey() == 'y' )
 	{
 		/* sarek:12/15/2001:insert article header for backup files in order to let fixdir rebuildable */
-		
+
 		//if (mailbox_is_full(0)) /* lthuang */
 		if (check_mail_num(0))
 		{
@@ -828,7 +868,7 @@ int x_bakpro()	/* by kmwang */
 			sprintf(fname, "tmp/_sigbackup.%s", curuser.userid);
 			if ((tmpfile = fopen(fname, "w")) == NULL)
 				return -1;
-			/*      
+			/*
 					write_article_header(tmpfile, curuser.userid, curuser.username, NULL,
 					NULL, title, NULL);
 			 */
@@ -860,7 +900,7 @@ int x_bakpro()	/* by kmwang */
 			sprintf(fname, "tmp/_planbackup.%s", curuser.userid);
 			if ((tmpfile = fopen(fname, "w")) == NULL)
 				return -1;
-			/*      
+			/*
 					write_article_header(tmpfile, curuser.userid, curuser.username, NULL,
 					NULL, title, NULL);
 			 */
@@ -892,7 +932,7 @@ int x_bakpro()	/* by kmwang */
 			sprintf(fname, "tmp/_friendsbackup.%s", curuser.userid);
 			if ((tmpfile = fopen(fname, "w")) == NULL)
 				return -1;
-			/*      
+			/*
 					write_article_header(tmpfile, curuser.userid, curuser.username, NULL,
 					NULL, title, NULL);
 			 */
@@ -953,7 +993,6 @@ int x_viewnote()			/* by Seraph */
 	return C_FULL;
 }
 
-
 #ifdef USE_MULTI_LANGUAGE
 int x_lang()
 {
@@ -979,50 +1018,3 @@ int x_lang()
 }
 #endif
 
-
-#ifdef STRIP_ANSI_USERNAME
-int x_username()
-{
-	char *s, *t;
-	char *buf = malloc(strlen(curuser.username)+1);
-	
-
-	outs("\n\
-抱歉, 由於您的暱稱含有彩色控制碼, 且未加上還原碼, 為了使得出現在\n\
-信件、佈告、使用者列表中之彩色控制碼, 不致引起畫面亂掉的問題,\n\
-所以需要您作以下暱稱修正的步驟: \n");
-	if (!buf)
-	{
-		outs("\n系統發生錯誤! 請通知系統管理員!");
-		return C_FULL;
-	}
-	
-	strcpy(buf, curuser.username);
-	move(10, 0);
-	prints("\n您原本的暱稱為: %s", curuser.username);
-	s = buf;
-	t = buf;
-	while (*s)
-	{
-		if (*s == 0x1b)
-		{
-			if (*++s == '[')
-				s++;
-			continue;
-		}
-		*t++ = *s++;
-	}
-	*t = '\0';
-	prints("\n修正後的暱稱為: %s", buf);
-	outs("\n確定執行以上修正嗎 (y/n) ? [n]: ");
-	if (igetkey() == 'y')
-	{
-		strcpy(curuser.username, buf);
-		outs("\n已修正完成!");
-	}
-	else
-		outs("\n放棄修正!");
-	free(buf);
-	return C_FULL;
-}
-#endif

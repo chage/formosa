@@ -11,13 +11,11 @@ static CLASSHEADER *cur_cs = NULL;
 
 static BOOL show_numposts = FALSE;
 
-
 int namecomplete_board(BOARDHEADER *bhp, char *data, BOOL simple)
 {
 	struct word *bwtop = NULL;
-	int i;	
-	
-	
+	int i;
+
 	if (!num_brds)
 	{
 		CreateBoardList(&curuser);
@@ -52,28 +50,27 @@ int select_board()
 
 	if (namecomplete_board(NULL, bname, FALSE) == 0)
 	{
-		struct BoardList *be1;	
-		
+		struct BoardList *be1;
+
 		if ((be1 = SearchBoardList(bname)) != NULL)
 		{
+			in_note = FALSE;
 			curbe = be1;
 			CurBList = be1->bhr;
-#if 0			
+#if 0
 			board_ccur = be1 - all_brds + 1;		/* Åý¨Ï¥ÎªÌ¤@¶i¤J (0)Boards ´N°±¦b¤W¦¸ªº¬ÝªO */
-#endif			
+#endif
 			return C_REDO;
 		}
 	}
 	return C_FULL;
 }
 
-
-static void board_entry(int x, struct BoardList ent[], int idx, int top, int last, int rows)
+static void board_entry(int x, void *ep, int idx, int top, int last, int rows)
 {
 	int num;
-	struct BoardList *be1;
+	struct BoardList *ent = (struct BoardList *)ep, *be1;
 	CLASSHEADER *chr;
-
 
 	be1 = &(ent[top - idx]);
 	for (num = top; num <= last && (num - top) < rows; num++, be1++)
@@ -85,9 +82,12 @@ static void board_entry(int x, struct BoardList ent[], int idx, int top, int las
 		}
 		else
 		{
-			prints("  %c%4d %-16.16s %4s %2s%1s%3d %-28.28s %-12.12s\n",
+			prints("  %c%4d%1s%-16.16s %4s %2s%1s%3d %-28.28s %-12.12s\n",
 			       ZapRC_IsZapped(be1->bhr->bid, be1->bhr->ctime) ? '*' : ' ',
 			       (show_numposts && in_board) ? be1->binfr->numposts : num,
+			       (ReadRC_Board(be1->bhr->filename,
+					     be1->bhr->bid,
+					     curuser.userid)) ? "[1;31m.[m" : "",
 			       be1->bhr->filename,
 			       (be1->bhr->brdtype & BRD_NEWS) ? _msg_board_3 : "",
 #ifdef USE_IDENT
@@ -138,11 +138,11 @@ static int board_max(char *direct, int size)
 }
 
 
-static int board_findkey(char *nbuf, struct BoardList ent[], int start, int total)
+static int board_findkey(char *nbuf, void *ep, int start, int total)
 {
 	register int i, len = strlen(nbuf);
 	struct BoardList *s;
-	
+
 
 	if (depth_class >= 1)
 		s = all_cs;
@@ -171,7 +171,7 @@ static int board_findkey(char *nbuf, struct BoardList ent[], int start, int tota
 
 static int bcmd_help(int ent, struct BoardList *bent, char *direct)
 {
-	more(BOARD_HELP, TRUE);
+	pmore(BOARD_HELP, TRUE);
 	return C_FULL;
 }
 
@@ -269,7 +269,7 @@ static int bcmd_enter(int ent, struct BoardList *bent, char *direct)
 	if (depth_class >= 1)
 	{
 		struct BoardList *be1;
-		
+
 		if ((be1 = SearchBoardList(bent->bhr->filename)) == NULL)
 			return C_LOAD;
 		curbe = be1;
@@ -277,6 +277,7 @@ static int bcmd_enter(int ent, struct BoardList *bent, char *direct)
 	else
 		curbe = &(all_brds[board_ccur - 1]);
 	CurBList = curbe->bhr;
+	in_note = FALSE;
 	Read();		/* Enter to Read menu */
 	return C_LOAD;
 }
@@ -317,21 +318,52 @@ static struct one_key board_comms[] =
 	{'/', bcmd_jump},
 	{'\t', bcmd_treasure},
 	{'S', bcmd_sort_class},
-#if 1	
+#if 1
 	{'C', bcmd_show_posts},
-#endif	
+#endif
 	{0, NULL}
 };
 
 
 int Boards()
 {
-	cursor_menu(4, 0, NULL, board_comms, sizeof(struct BoardList), 
-			&board_ccur,board_title, board_btitle, board_entry, 
-			board_get, board_max, board_findkey, 0, TRUE, SCREEN_SIZE-4);
+	cursor_menu(4, 0, NULL, board_comms, sizeof(struct BoardList),
+			&board_ccur,board_title, board_btitle, board_entry,
+			board_get, board_max, board_findkey, 0, TRUE);
 
-	/* reload previous menu */			
+	/* reload previous menu */
 	return C_LOAD;
+}
+
+/* ¶i¤Jµuºàª© */
+int NoteBoard(char *userid)
+{
+	static BOARDHEADER bh, *note_bh = NULL;
+	static struct BoardList be, *note_be = NULL;
+
+	if (!strcmp(userid, GUEST))
+		return 0;
+
+	if (!note_bh) {
+		note_bh = &bh;
+		memset(&bh, 0, sizeof(bh));
+	}
+	if (!note_be) {
+		note_be = &be;
+		memset(&be, 0, sizeof(be));
+		note_be->bhr = note_bh;
+	}
+
+	strlcpy(bh.filename, userid, sizeof(bh.filename));
+	strlcpy(bh.owner,    userid, sizeof(bh.owner));
+
+	CurBList = note_bh;
+	curbe = note_be;
+
+	in_note = TRUE;
+	Read();
+
+	return 0;
 }
 
 
@@ -340,7 +372,7 @@ static struct BoardList *SearchBoardList_by_bid(unsigned bid)
 	if (bid >= 1 && bid <= MAXBOARD)
 	{
 		int i;
-		
+
 		for (i = 0; i < num_brds; i++)
 		{
 			if (all_brds[i].bhr->bid == bid)
@@ -354,8 +386,8 @@ static struct BoardList *SearchBoardList_by_bid(unsigned bid)
 static int cmp_class(const void *a, const void *b)
 {
 	struct BoardList *as = (struct BoardList *)a;
-	struct BoardList *bs = (struct BoardList *)b;	
-	
+	struct BoardList *bs = (struct BoardList *)b;
+
 	if (!as->bhr && !as->bhr)
 		return 0;
 	else if (as->bhr && !bs->bhr)
@@ -390,7 +422,7 @@ static int class_max(char *direct, int size)
 			all_cs[num_class].cid = csi->cid;
 			num_class++;
 		}
-		else		
+		else
 		{
 			if ((be1 = SearchBoardList_by_bid(csi->bid)) != NULL)
 				memcpy(&(all_cs[num_class++]), be1, sizeof(struct BoardList));
@@ -422,8 +454,8 @@ int Class()
 	for (;;)
 	{
 		if (cursor_menu(4, 0, NULL, board_comms, sizeof(struct BoardList),
-				&class_ccur, board_title, board_btitle,	board_entry, 
-				class_get, class_max, board_findkey, 0, TRUE, SCREEN_SIZE-4) == 0)
+				&class_ccur, board_title, board_btitle,	board_entry,
+				class_get, class_max, board_findkey, 0, TRUE) == 0)
 		{
 			if (--depth_class < 1)
 				break;
@@ -433,6 +465,6 @@ int Class()
 	}
 	depth_class = 0;
 
-	/* reload previous menu */				
+	/* reload previous menu */
 	return C_LOAD;
 }

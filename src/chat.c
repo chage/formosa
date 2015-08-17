@@ -17,9 +17,9 @@
  * ¶Ç¤J string, malloc ¤@¶ô memory ¦s¤U¦r¦ê
  * ¶Ç¦^ ¸Ó MEMORY Pointer
  *******************************************************************/
-void *xstrdup(const char *str) 
+void *xstrdup(const char *str)
 {
-    char *new; 
+    char *new;
 
     if (str && *str)
     {
@@ -31,21 +31,20 @@ void *xstrdup(const char *str)
 }
 
 
-struct word *iglist = NULL;
+static struct word *iglist = NULL;
 
-int chat_line;
-int ECHATWIN, PLINE;
+static int chat_line;
+static int ECHATWIN, PLINE;
 
 #if 1
-char *pargv[5];
-char cur_chname[80];
+static char *pargv[5];
+static char cur_chname[80];
 extern char myhostname[];
 #endif
 
 #if 1
-char debug[8192];
+static char debug[8192];
 #endif
-
 
 #if 1
 #define BADCIDCHARS " %*$`\"\\;:|[{]},./?=~!@#^()<>"
@@ -53,11 +52,11 @@ char debug[8192];
 #define BADCIDCHARS " *`\"\\;:|,./=~'!"
 #endif
 
-static void fixchatid(unsigned char *chatid)
+static void fixchatid(char *chatid)
 {
 	char *p;
 
-	if ((p = strstr((const char *)chatid, (const char *)"¡@")))		/* lthuang */
+	if ((p = strstr(chatid, "¡@")))		/* lthuang */
 		memcpy(p, "__", 2);
 	while (*chatid)
 	{
@@ -70,17 +69,17 @@ static void fixchatid(unsigned char *chatid)
 }
 
 
-int chat_write(int fd, void *buf)
+static int chat_write(int fd, void *buf)
 {
 	return write(fd, buf, strlen(buf));
 }
 
 
-int chat_printf(int sd, char *fmt, ...)
+static int chat_printf(int sd, char *fmt, ...)
 {
 	va_list args;
 	char str[1024];
-	int bytes_written;	
+	int bytes_written;
 
 
 	va_start(args, fmt);
@@ -93,30 +92,20 @@ int chat_printf(int sd, char *fmt, ...)
 }
 
 
-int ac;
+static int ac;
 
 #define CHATIDLEN		(13)
-char mychatid[CHATIDLEN];
+static char mychatid[CHATIDLEN];
 
 #define SAYWORD_POINT	(14)
-char prompt[SAYWORD_POINT + 1 + CHATIDLEN + 1];
-
-#if 0
-#define CHAT_SERVER		"210.65.1.170"	/* irc.hinet.net */
-#define CHAT_SERVER		"140.117.12.62"
-#define CHAT_SERVER		"140.113.209.108"	/* irc.csie.nctu.edu.tw */
-#endif
-
-#if 1
-#define CHAT_SERVER	"140.117.11.20"
-#endif
+static char prompt[SAYWORD_POINT + 1 + CHATIDLEN + 1];
 
 void printchatline(const char *str)
 {
 	int i = 0;
 	int wrap = 0;
 	int y, x;
-	
+
 	move(chat_line, i);
 	clrtoeol();
 
@@ -134,7 +123,7 @@ void printchatline(const char *str)
 #if 1
 			wrap = 1;
 			refresh();
-#endif						
+#endif
 		}
 		else
 		{
@@ -157,27 +146,27 @@ void printchatline(const char *str)
 	standout();
 	outs("-->");
 	standend();
-#if 1		
+#if 1
 	refresh();
-#endif		
+#endif
 }
 
 
-int mygets(int fd, char *buf, int size)
+static int mygets(int fd, char *buf, int size)
 {
 	int i;
 	char *p;
-	
+
 	if (!net_gets(fd, buf, size))
 		return -1;
 
-#if 1		
+#if 1
 	strcpy(debug, genbuf);
-#endif	
+#endif
 
 	/* PING :bbs.myown.com.tw */
 	pargv[0] = strtok(buf, " ");
-	if (!strncmp(pargv[0], "PING", 4))	
+	if (!strncmp(pargv[0], "PING", 4))
 	{
 		pargv[1] = strtok(NULL, " :\n");
 		chat_printf(fd, "PONG %s %s\r\n", myhostname, pargv[1]);
@@ -186,7 +175,7 @@ int mygets(int fd, char *buf, int size)
 #endif
 		return 0;
 	}
-	
+
 	pargv[0] += 1;
 	if ((p = strchr(pargv[0], '!')) != NULL)
 		*p = '\0';
@@ -280,7 +269,7 @@ static void dochatcommand(char *cmd)
 		{
 			chat_printf(ac, "JOIN %s\r\n", DEFAULT_CHANNAME);
 			chat_printf(ac, "PART %s\r\n", cur_chname);
-			xstrncpy(cur_chname, DEFAULT_CHANNAME, sizeof(cur_chname));		
+			xstrncpy(cur_chname, DEFAULT_CHANNAME, sizeof(cur_chname));
 		}
 	}
 	else if (!strcmp(cmd, "nick") || !strcmp(cmd, "n"))
@@ -376,8 +365,8 @@ static void dochatcommand(char *cmd)
 			xstrncpy(prefixed+1, para, sizeof(prefixed));
 		}
 		else
-			xstrncpy(prefixed, para, sizeof(prefixed));		
-		
+			xstrncpy(prefixed, para, sizeof(prefixed));
+
 		para2 = strtok(NULL, " \n");
 		if (!para2)
 			chat_printf(ac, "JOIN %s\r\n", prefixed);
@@ -387,7 +376,7 @@ static void dochatcommand(char *cmd)
 		{
 			chat_printf(ac, "MODE %s +t\r\n", prefixed);
 			chat_printf(ac, "PART %s\r\n", cur_chname);
-			xstrncpy(cur_chname, prefixed, sizeof(cur_chname));					
+			xstrncpy(cur_chname, prefixed, sizeof(cur_chname));
 		}
 	}
 	else if (!strcmp(cmd, "m") || !strcmp(cmd, "msg"))
@@ -418,7 +407,7 @@ static void dochatcommand(char *cmd)
 	{
 		chat_printf(ac, "AWAY %s\r\n", para);
 	}
-#endif		
+#endif
 	else
 	{
 		printchatline("*** ERROR: unknown special chat command");
@@ -432,7 +421,7 @@ static void dochatcommand(char *cmd)
 		genbuf[strlen(genbuf) - 1] = '\0';
 		printchatline(genbuf + 5);
 	}
-*/	
+*/
 }
 
 
@@ -440,7 +429,7 @@ static void *xmemchr(const void *s, int c, size_t n)
 {
 	int *m = (int *)s;
 	int *end = m + n;
-	
+
 	while (m < end)
 	{
 		if (*m == c)
@@ -450,6 +439,25 @@ static void *xmemchr(const void *s, int c, size_t n)
 	return (int *)NULL;
 }
 
+#define CUR_PLINE    (b_line - 1)
+#define CUR_ECHATWIN (b_line - 2)
+
+static void draw_chat_screen()
+{
+	PLINE = CUR_PLINE;
+	ECHATWIN = CUR_ECHATWIN;
+
+	clear();
+	move(ECHATWIN, 0);
+	outs("________________________________________________________________________________");
+	chat_line = 0;		/* reset */
+	printchatline(_msg_chat_6);
+
+	/* show prompt */
+	move(PLINE, 0);
+	clrtoeol();
+	outs(prompt);
+}
 
 int t_chat()
 {
@@ -460,7 +468,6 @@ int t_chat()
 	char rcvbuf[512];
 	char *mycrypt();
 
-
 	if (check_page_perm() < 0)
 		return C_FOOT;
 
@@ -469,57 +476,48 @@ int t_chat()
 	currchar = 0;
 	chat_line = 0;
 
-#if 1
-	if (getdata(1, 0, "(1) ¸ó¯¸²á¤Ñ«Ç (2) ¯¸¤º²á¤Ñ«Ç : [1] ", genbuf, 2, ECHONOSP)
-		&& genbuf[0] == '2')
+	if (getdata(1, 0, "(1) ¸ó¯¸²á¤Ñ«Ç (2) ¯¸¤º²á¤Ñ«Ç (3) °h¥X: [3] ", genbuf, 2, ECHONOSP))
 	{
-		return t_chat2();
+		if (genbuf[0] == '2')
+			return t_chat2();
+	} else {
+		return C_FULL;
 	}
-#endif		
-	
+
 	if (!getdata(1, 0, "Enter Chat id: ", mychatid, CHATIDLEN, ECHONOSP))
 		xstrncpy(mychatid, curuser.userid, CHATIDLEN);
 
 	fixchatid(mychatid);
 
-	if ((ac = ConnectServer(CHAT_SERVER, IRC_CHATPORT)) < 0)
+	if ((ac = ConnectServer(IRC_SERVER, IRC_CHATPORT)) < 0)
 	{
 		perror("connect failed");
 		pressreturn();
 		return C_FULL;
 	}
 
-	chat_printf(ac, "USER BBSTelnet %s %s %s_%s\r\n", 
+	chat_printf(ac, "USER BBSTelnet %s %s %s_%s\r\n",
 		myhostname, myhostname, curuser.userid, curuser.username);
-		
+
 	uinfo.mode = CHATROOM;
 	xstrncpy(uinfo.chatid, mychatid, sizeof(uinfo.chatid));
 	update_ulist(cutmp, &uinfo);
 
-	PLINE = t_lines - 1;
-	ECHATWIN = t_lines - 2;
-	
-	clear();
-	move(ECHATWIN, 0);
-	outs("________________________________________________________________________________");
-	chat_line = 0;		/* reset */
-	printchatline(_msg_chat_6);
-
 	if (strlen(mychatid) >= 9)
 	{
-#ifdef NSYSUBBS1	
+#ifdef NSYSUBBS1
 		if (mychatid[0] == 'm' && isdigit((int)(mychatid[1])))
 		{
 			char *s = mychatid + 6;
 			char *t = mychatid + 3;
-			
+
 			/* m8822417092 => m8817092 */
 			while (*s)
 				*t++ = *s++;
 			*t = '\0';
-		}			
+		}
 		else
-#endif	
+#endif
 		/* longeruserid => longerus_ */
 		{
 			mychatid[8] = '_';
@@ -532,23 +530,23 @@ int t_chat()
 	strcat(prompt, ":           ");
 	prompt[SAYWORD_POINT] = '\0';
 
-	/* show prompt */
-	move(PLINE, 0);
-	clrtoeol();
-	outs(prompt);
+	draw_chat_screen();
 
 	add_io(ac, 0);
 
-
 	chat_printf(ac, "NICK %s\r\n", mychatid);
 	chat_printf(ac, "JOIN %s\r\n", DEFAULT_CHANNAME);
-	xstrncpy(cur_chname, DEFAULT_CHANNAME, sizeof(cur_chname));	
-	chat_printf(ac, "MODE %s +t\r\n", cur_chname);	
+	xstrncpy(cur_chname, DEFAULT_CHANNAME, sizeof(cur_chname));
+	chat_printf(ac, "MODE %s +t\r\n", cur_chname);
 
 	/* Chat Main */
 	while (1)
 	{
 		ch = getkey();
+		if (PLINE != CUR_PLINE) {
+			draw_chat_screen();
+			continue;
+		}
 		if (talkrequest)
 			page_pending = TRUE;
 		if (page_pending)
@@ -565,34 +563,34 @@ int t_chat()
 		if (ch == I_OTHERDATA)
 		{
 			int status;
-			
+
 			if (mygets(ac, rcvbuf, sizeof(rcvbuf)-1) < 0)
 				break;
-				
+
 			if (cmp_wlist(iglist, pargv[0], strcmp))
 				continue;
-			
+
 			if (!strncmp(pargv[3], ":\001DCC", 5))
 			{
 				continue;
 			}
-			
+
 			status = atoi(pargv[1]);
 			if (status != 0)
 			{
-				int dummy[] = {	001, 002, 003, 004, 005, 375, 
+				int dummy[] = {	001, 002, 003, 004, 005, 375,
 								366,	/* end of NAMES list */
 								482,	/* MODE +t error */
 								323,	/* end of LIST */
 								333,	/* TOPIC set since when */
 								442,	/* TOPIC error */
 								404,	/* PRIVMSG error */
-								375,	/* begin of MOTD */								
-								376, 	/* end of MOTD */								
+								375,	/* begin of MOTD */
+								376, 	/* end of MOTD */
 								317,	/* end of WHOIS */
 								};
 				int info[] = { 251, /*252,*/ 253, 254, 255, /* LUSERS */
-								265, 266, 
+								265, 266,
 								372, 	/* MOTD */
 								353,	/* NAMES List */
 								321,	/* head of LIST */
@@ -603,15 +601,15 @@ int t_chat()
 
 				if (status == 322 || status == 323)
 				{
-					char chname[201], topic[201], members[40];			
+					char chname[201], topic[201], members[40];
 					static int header = 0;
-			
+
 					if (status == 323)
 					{
 						header = 0;
 						continue;
 					}
-					
+
 					if (!header)
 					{
 						printchatline(_msg_chat_16);
@@ -622,9 +620,9 @@ int t_chat()
 						sprintf(genbuf, "%-15s  %-20s  %-12s  %-6s  %-4s",
 							"------", "------", "------", "------", "------");
 						header = 1;
-						printchatline(genbuf);						
+						printchatline(genbuf);
 					}
-					
+
 					if (sscanf(pargv[3], "%s %s :%s\n", chname, members, topic) !=3)
 						topic[0] = '\0';
 					if (chname[0] == '&')
@@ -638,7 +636,7 @@ int t_chat()
 					int cnt = 0;
 					char uline[200], pline[50];
 					char *p;
-					
+
 					printchatline(_msg_chat_7);
 					sprintf(genbuf, "[7m%-12s %-12s %-12s %-12s %-12s %-12s[m",
 						_msg_chat_8, _msg_chat_9,
@@ -656,16 +654,16 @@ int t_chat()
 						if ((p = strtok(p, " \n")) != NULL)
 						{
 							sprintf(pline, "[1;36;40m%-12s[m %-12s", p, "");
-							strcat(pline, " ");				
+							strcat(pline, " ");
 							cnt += 1;
-							strcat(uline, pline);									
-		
+							strcat(uline, pline);
+
 							while ((p = strtok(NULL, " \n")) != NULL)
 							{
-								sprintf(pline, "[1;36;40m%-12s[m %-12s", p, "");				
+								sprintf(pline, "[1;36;40m%-12s[m %-12s", p, "");
 								if (cnt < 2)
 									strcat(pline, " ");
-								strcat(uline, pline);						
+								strcat(uline, pline);
 								if (++cnt == 3)
 								{
 									cnt = 0;
@@ -681,7 +679,7 @@ int t_chat()
 				else if (status == 332)
 				{
 					char *p;
-					
+
 					if ((p = strchr(pargv[3], ':')) != NULL)
 					{
 						sprintf(genbuf, "*** ¥»ÀW¹Dªº°Q½×¥DÃD¬°: %s", p+1);
@@ -693,8 +691,8 @@ int t_chat()
 				:chat.nsysu.edu.tw 312 a a chat.nsysu.edu.tw :National Sun Yat-sen University
 				:chat.nsysu.edu.tw 317 a a 4 :seconds idle
 				:chat.nsysu.edu.tw 318 a a :End of WHOIS list.
-				*/				
-#if 0				
+				*/
+#if 0
 				else if (status == 312)
 				{
 					if ((p = strchr(pargv[3], ':')) != NULL)
@@ -711,7 +709,7 @@ int t_chat()
 						printchatline(genbuf);
 					}
 				}
-#endif				
+#endif
 				else if (xmemchr(dummy, status, sizeof(dummy)))
 					continue;
 				else if (xmemchr(info, status, sizeof(info)))
@@ -724,24 +722,24 @@ int t_chat()
 					sprintf(genbuf, "%o> %s", status, pargv[3]);
 					printchatline(genbuf);
 				}
-			}	
+			}
 			else if (!strcmp(pargv[1], "KICK"))
 			{
 				sprintf(genbuf, "*** %s ¸T¤î %s Á¿¸Ü!", pargv[0], pargv[3]);
 				printchatline(genbuf);
-			}			
+			}
 			else if (!strcmp(pargv[1], "MODE"))
 			{
-/*			
+/*
 				uinfo.invisible = (uinfo.invisible) ? FALSE : TRUE;
 				update_ulist(cutmp, &uinfo);
 				if (!uinfo.invisible)
 					printchatline("*** Cloak has been deactivated");
 				else
 					printchatline("*** Cloak has been activated");
-*/					
+*/
 /* :Kikeli!^riku@wopr.sci.fi MODE #sex -b+b *!hqghu@* *!*hqghu@* */
-				
+
 				if (!strncmp(pargv[3], "-k", 2))
 				{
 					sprintf(genbuf, "*** ¸Ñ°£ %s ÀW¹D±K½X!", pargv[2]);
@@ -770,14 +768,14 @@ int t_chat()
 #if 1
 			else if (!strcmp(pargv[1], "INVITE"))
 			{
-				sprintf(genbuf, "*** %s ÁÜ½Ð±z¥[¤J %s ÀW¹D!", 
+				sprintf(genbuf, "*** %s ÁÜ½Ð±z¥[¤J %s ÀW¹D!",
 					pargv[0], pargv[3] + 1);
 				printchatline(genbuf);
 			}
-#endif			
+#endif
 			else if (!strcmp(pargv[1], "TOPIC"))
 			{
-				sprintf(genbuf, "*** %s §ó´« %s ÀW¹D¥DÃD¬°: %s", 
+				sprintf(genbuf, "*** %s §ó´« %s ÀW¹D¥DÃD¬°: %s",
 					pargv[0], cur_chname, pargv[3] + 1);
 				printchatline(genbuf);
 			}
@@ -790,7 +788,7 @@ int t_chat()
 			{
 				sprintf(genbuf, "*** %s §ó´«¼ÊºÙ¬°: %s", pargv[0], pargv[2] + 1);
 				printchatline(genbuf);
-			
+
 				if (!strcmp(pargv[0], uinfo.chatid))
 				{
 					xstrncpy(uinfo.chatid, pargv[2] + 1, sizeof(uinfo.chatid));
@@ -800,7 +798,7 @@ int t_chat()
 					strcpy(prompt, uinfo.chatid);
 					strcat(prompt, ":           ");
 					prompt[SAYWORD_POINT] = '\0';
-					move(PLINE, 0);					
+					move(PLINE, 0);
 					clrtoeol();
 					outs(prompt);
 				}
@@ -828,17 +826,17 @@ int t_chat()
 			}
 			else
 			{
-#if 0			
+#if 0
 				sprintf(genbuf, "### %s %s %s %s", pargv[0], pargv[1], pargv[2], pargv[3]);
 				printchatline(genbuf);
 #endif
 #if 1
 				char *p;
-				
+
 				if ((p = strchr(debug, '\n')) != NULL)
 					*p = '\0';
 				printchatline(debug);
-#endif					
+#endif
 			}
 		}
 		else if (isprint2(ch))
@@ -850,7 +848,7 @@ int t_chat()
 			}
 			inbuf[currchar++] = ch;
 			inbuf[currchar] = '\0';
-			move(23, SAYWORD_POINT + currchar - 1);
+			move(PLINE, SAYWORD_POINT + currchar - 1);
 			outc(ch);
 		}
 		else if (ch == '\n' || ch == '\r')

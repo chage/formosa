@@ -1,4 +1,4 @@
-/* 
+/*
  * Li-te Huang, lthuang@cc.nsysu.edu.tw, 10/29/97
  */
 
@@ -10,8 +10,16 @@
 extern BOOL hasBMPerm;
 extern BOOL isBM;
 
+static int is_articleOwner(const FILEHEADER *finfo)
+{
+#ifdef IGNORE_CASE
+		return !strcasecmp(finfo->owner, curuser.userid);
+#else
+		return !strcmp(finfo->owner, curuser.userid);
+#endif
+}
 
-static int articleCheckPerm(FILEHEADER *finfo)
+static int articleCheckPerm(const FILEHEADER *finfo)
 {
 	if (finfo->accessed & FILE_DELE)
 		return 0;
@@ -19,30 +27,20 @@ static int articleCheckPerm(FILEHEADER *finfo)
 	if (!strcmp(curuser.userid, GUEST))
 		return 0;
 #endif
-/* 
+/*
 disable
 	if (HAS_PERM(PERM_SYSOP))
 		return 1;
-*/		
+*/
 	if (in_mail)
 		return 1;
 	else if (in_board)
-	{
-#ifdef IGNORE_CASE
-		if (!strcasecmp(finfo->owner, curuser.userid))
-#else
-		if (!strcmp(finfo->owner, curuser.userid))
-#endif
-			return 1;
-	}
-	else
-	{
-		if (hasBMPerm)
-			return 1;
-	}
+		return is_articleOwner(finfo) || hasBMPerm;
+	else /* 精華區 */
+		return hasBMPerm;
+
 	return 0;
 }
-
 
 /*
  * 修改文章標題
@@ -60,12 +58,14 @@ int title_article(int ent, FILEHEADER *finfo, char *direct)
 		return C_FOOT;
 	}
 
-	/* maybe file lock needed ? */
-	if (get_record(direct, fhr, FH_SIZE, ent) == -1)
-		return C_FOOT;
+	memcpy(fhr, finfo, FH_SIZE);
 	strcpy(fhr->title, title);
-	if (substitute_record(direct, fhr, FH_SIZE, ent) == -1)
-		return C_FOOT;
+	if (safely_substitute_dir(direct, 0, ent, finfo, fhr, TRUE) == -1) {
+		msg(ANSI_COLOR(1;31) "修改標題失敗" ANSI_RESET);
+		getkey();
+		return C_INIT;
+	}
+	strcpy(finfo->title, title);
 
 #ifdef USE_THREADING	/* syhu */
 	sync_threadfiles( fhr, direct);
@@ -103,12 +103,18 @@ int title_article(int ent, FILEHEADER *finfo, char *direct)
 		while (fgets(genbuf, sizeof(genbuf), fpr))
 			fprintf(fpw, "%s", genbuf);
 
+		if (!is_articleOwner(finfo) && in_board) {
+			time_t now;
+			time(&now);
+			sprintf(genbuf, "* Modify: %s * At: %s", curuser.userid, ctime(&now));
+			fputs(genbuf, fpw);
+		}
+
 		fclose(fpw);
 		fclose(fpr);
 		chmod(fn_w, 0600);
 		myrename(fn_w, fn_r);
 	}
-	strcpy(finfo->title, title);
 	return C_LINE;
 }
 
@@ -156,7 +162,7 @@ int edit_article(int ent, FILEHEADER *finfo, char *direct)
 	}
 
  	/* skipping all the header fields to content, content is separated from
-		the header fields by a '\n' */ 
+		the header fields by a '\n' */
 	while (fgets(genbuf, sizeof(genbuf), fp_ori))
 	{
 		if (genbuf[0] == '\n')
@@ -174,34 +180,36 @@ int edit_article(int ent, FILEHEADER *finfo, char *direct)
 	fclose(fp_edit);
 
 	retval = -1;
-	
+
 	/*
 		asuka: (bug fixed by lasehu, 99/11/15)
-			把 文章修改 的標記移入 article header 
+			把 文章修改 的標記移入 article header
 			避免回覆文章時或轉信時變成文章內容的一部份
+		cooldavid: 只有原作者修改是放在標頭
+			   版主修改將修改記錄放在文章後面
 	*/
 	if (!vedit(fn_edit, NULL, NULL))
 	{
 		fseek(fp_ori, 0, SEEK_SET);
 		while (fgets(genbuf, sizeof(genbuf), fp_ori))
 		{
-			if (!strncmp(genbuf, "修改:", 5))	/* lang.h */
+			if (is_articleOwner(finfo) &&
+			    !strncmp(genbuf, "修改:", 5))
 				continue;
 			if (genbuf[0] == '\n')
 				break;
 			fputs(genbuf, fp_new);
 		}
-		
-		if (in_board || in_mail)
+
+		if (is_articleOwner(finfo) && (in_board || in_mail))
 		{
 			time_t now;
-			
 			time(&now);
-			fprintf(fp_new, "修改: %s", ctime(&now));	/* lang.h */
+			fprintf(fp_new, "修改: %s", ctime(&now));
 		}
 
 		fprintf(fp_new, "\n");
-		
+
 		if ((fp_edit = fopen(fn_edit, "r")) != NULL)
 		{
 			while (fgets(genbuf, sizeof(genbuf), fp_edit))
@@ -212,18 +220,25 @@ int edit_article(int ent, FILEHEADER *finfo, char *direct)
 		fseek(fp_ori, offset, SEEK_CUR);
 		while (fgets(genbuf, sizeof(genbuf), fp_ori))
 			fputs(genbuf, fp_new);
-			
+
+		if (!is_articleOwner(finfo) && in_board) {
+			time_t now;
+			time(&now);
+			sprintf(genbuf, "* Modify: %s * At: %s", curuser.userid, ctime(&now));
+			fputs(genbuf, fp_new);
+		}
+
 		retval = 0;
 	}
 
 	fclose(fp_ori);
 	fclose(fp_new);
 	if (retval == 0)
-		retval = myrename(fn_new, fn_ori);			
-	if (retval != 0)
+		retval = myrename(fn_new, fn_ori);
+	else
 		unlink(fn_new);
 	unlink(fn_edit);
-	
+
 	return C_FULL;
 }
 
@@ -235,17 +250,17 @@ int reserve_article(int ent, FILEHEADER *finfo, char *direct)
 {
 	FILEHEADER *fhr = &fhGol;
 	int fd;
-	
+
 
 	if ((finfo->accessed & FILE_DELE) || (finfo->accessed & FILE_TREA))
 		return C_NONE;
-	/* 
+	/*
 	 * 1. 精華區文章皆不可
 	 * 2. 個人信箱皆可
 	 * 3. 一般區文章, 惟有板主, 板主助手, 站長可
 	 */
 	if ((!in_mail && !in_board)
-	    || (!in_mail/* && !HAS_PERM(PERM_SYSOP)*/ && !hasBMPerm))
+	    || (!in_mail && !hasBMPerm))
 	{
 		return C_NONE;
 	}
@@ -254,7 +269,7 @@ int reserve_article(int ent, FILEHEADER *finfo, char *direct)
 		return 0;
 #endif
 
-	if (cmp_wlist(artwtop, finfo->filename, strcmp))	
+	if (cmp_wlist(artwtop, finfo->filename, strcmp))
 	{
 		msg("<<文章保留>>  (t)已標記的 (a)此篇? [a]: ");	/* lang.h */
 		if (igetkey() == 't')
@@ -263,7 +278,7 @@ int reserve_article(int ent, FILEHEADER *finfo, char *direct)
 			if ((fd = open(direct, O_RDONLY)) > 0)
 			{
 				int entResv;
-				
+
 				for (entResv = 1; read(fd, fhr, FH_SIZE) == FH_SIZE; entResv++)
 				{
 					if (fhr->accessed & FILE_DELE || fhr->accessed & FILE_TREA)
@@ -340,8 +355,8 @@ static int reply_article(int ent, FILEHEADER *finfo, char *direct)
 	if (option & PMP_POST)
 	{
 #ifdef 	USE_THREADING	/* syhu */
-		result = PreparePost(fn_src, strTo, title, option, NULL, 
-							 finfo->thrheadpos, finfo->thrpostidx);  
+		result = PreparePost(fn_src, strTo, title, option, NULL,
+							 finfo->thrheadpos, finfo->thrpostidx);
 #else
         /* postpath: NULL */
 		result = PreparePost(fn_src, strTo, title, option, NULL);
@@ -398,14 +413,14 @@ static void readed_article(int ent, FILEHEADER *finfo, char *direct)
 	}
 	else if (in_board)
 	{
-		if (ReadRC_UnRead(finfo->postno))
+		if (ReadRC_UnRead(finfo))
 			ReadRC_Addlist(finfo->postno);
 	}
 }
 
 
-/* 
- * prompt, when article display done 
+/*
+ * prompt, when article display done
  */
 int read_article(int ent, FILEHEADER *finfo, char *direct)
 {
@@ -415,7 +430,7 @@ int read_article(int ent, FILEHEADER *finfo, char *direct)
 	extern char memtitle[];
 	int pr; /* pager result */
 
-    /* if this is an treasure area directory, then go into this dir. */
+	/* if this is an treasure area directory, then go into this dir. */
 	if (!in_board && !in_mail && finfo->accessed & FILE_TREA)
 	{
 		char *pt;
@@ -424,19 +439,19 @@ int read_article(int ent, FILEHEADER *finfo, char *direct)
 		if (!last_accessed)	/* 讀佈告時按上下鍵遇到精華區目錄 */
 		{
 			last_accessed = TRUE;
-			return C_FULL; 
+			return C_FULL;
 		}
 
  		if (nowdepth >= TREASURE_DEPTH)	/* lthuang */
  			return C_NONE;
- 			
+
 		pt = strrchr(direct, '/') + 1;
 		sprintf(pt, "%s/%s", finfo->filename, DIR_REC);
 		nowdepth++;
 		return C_REDO;
 	}
 
-    /* if post has been marked for delete, then just go to next post */ 
+	/* if post has been marked for delete, then just go to next post */
 	if (finfo->accessed & FILE_DELE)
 		return updown;
 
@@ -444,7 +459,7 @@ int read_article(int ent, FILEHEADER *finfo, char *direct)
 	if (in_mail && check_mail_num(0) && !(finfo->accessed & FILE_READ))
 		return C_LINE;
 
-    /* print out the content of this post with 'more' */
+	/* print out the content of this post with 'more' */
 	setdotfile(fname, direct, finfo->filename);
 	if (!isfile(fname))	/* debug */
 		return C_FULL;
@@ -456,7 +471,7 @@ int read_article(int ent, FILEHEADER *finfo, char *direct)
 
 	msg(_msg_article_5);
 	/*
-	 * If cursor is at the right side of two-bit word, 
+	 * If cursor is at the right side of two-bit word,
 	 * some system would send BackSpace or Del key twice.
 	 * As a result, we move cursor to first word to avoid this problem.
 	 */
@@ -465,7 +480,7 @@ int read_article(int ent, FILEHEADER *finfo, char *direct)
 	if (!strncmp(finfo->title, STR_REPLY, REPLY_LEN))
 		strcpy(memtitle, finfo->title);
 	else
-		/* memtitle has been initialized as STR_REPLY */	
+		/* memtitle has been initialized as STR_REPLY */
 		strcpy(memtitle + REPLY_LEN, finfo->title);
 
 	/* User can have this action during reading article */
@@ -505,6 +520,7 @@ int read_article(int ent, FILEHEADER *finfo, char *direct)
 	case 'd':
 		delete_article(ent, finfo, direct);
 		return updown;
+	case 'X':
 	case '%':
 		return push_article(ent, finfo, direct);
 	case 'q':
@@ -520,37 +536,38 @@ int read_article(int ent, FILEHEADER *finfo, char *direct)
 /*
  * 批次刪除文章
  *
- * ent, finfo, direct - standard input-processing function parameters 
+ * ent, finfo, direct - standard input-processing function parameters
  * wtop - beginning of taged-articles linklist
- * option - 'd' for delete, 
- *			'u' for undelete, 
+ * option - 'd' for delete,
+ *			'u' for undelete,
  *			'r' for delete & mail back to author
  */
 int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop, int option)
 {
 	int fd;
 	FILEHEADER *fhr = &fhGol;
-	int n = 0;
+	INFOHEADER linfo;
+	int n = 0, rtval = -1;
+	unsigned char last_deleted = 0;
 
-
-	if ((fd = open(direct, O_RDWR)) < 0)
+	if ((fd = open_and_lock(direct)) < 0)
 		return -1;
-	flock(fd, LOCK_EX);
+
+	if (get_last_info(direct, fd, &linfo, FALSE) == -1)
+		goto err_out;
 
 	/* jump to current post if not deleting tagged files */
 	if (!wtop)
 	{
+		if (safely_read_dir(direct, fd, ent, finfo, fhr))
+			goto err_out;
 		if (lseek(fd, (ent - 1) * FH_SIZE, SEEK_SET) == -1)
-		{
-			flock(fd, LOCK_UN);
-			close(fd);
-			return -1;
-		}
+			goto err_out;
 		n = ent - 1;
 	}
- 
+
  	/* begin checking each file entry to mark for delete  */
-	while (read(fd, fhr, FH_SIZE) == FH_SIZE)
+	while (myread(fd, fhr, FH_SIZE) == FH_SIZE)
 	{
 		n++;
 
@@ -559,7 +576,7 @@ int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop,
 			if (n > ent)
 				break;
 		}
- 		/* if current post wasn't tagged for delete, then just skip */ 
+ 		/* if current post wasn't tagged for delete, then just skip */
 		else
 		{
 			if (!cmp_wlist(wtop, fhr->filename, strcmp))
@@ -570,13 +587,12 @@ int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop,
 				{
 					msg(_msg_article_1);
 					getkey();
-					flock(fd, LOCK_UN);
-					close(fd);
-					return -1;
+					goto err_out;
 				}
 				continue;
 			}
 		}
+
 		/* check if we need to mail it back to author */
 		if (option == 'r')
 		{
@@ -596,13 +612,12 @@ int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop,
 			{
 				uinfo.ever_delete_mail = 1;
 			}
-			else if (in_board /*&& !HAS_PERM(PERM_SYSOP)*/ && !hasBMPerm &&
-				 strcmp(fhr->owner, curuser.userid))
+			else if (in_board && !hasBMPerm &&
+				strcmp(fhr->owner, curuser.userid))
 			{
 				continue;
 			}
-			else if (!in_mail && !in_board /*&& !HAS_PERM(PERM_SYSOP)*/
-				 && !hasBMPerm)
+			else if (!in_mail && !in_board && !hasBMPerm)
 			{
 				continue;
 			}
@@ -621,6 +636,9 @@ int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop,
 				else
 					xstrncpy(fhr->delby, curuser.userid, IDLEN);
 				fhr->accessed |= FILE_DELE;
+				if (!last_deleted &&
+				    !strcmp(fhr->filename, linfo.last_filename))
+					last_deleted = 1;
 			}
 		}
 		else if (option == 'u')
@@ -639,6 +657,7 @@ int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop,
 				/* unset delete-mark and clear 'delby' */
 				fhr->accessed &= ~FILE_DELE;
 				memset(fhr->delby, 0, IDLEN);
+				last_deleted = 1;
 			}
 			else
 				continue;
@@ -647,7 +666,7 @@ int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop,
 			continue;	/* ?? */
 		/* note: the article was deleted by who */
 
- 		/* update the file info currently in memory */ 
+ 		/* update the file info currently in memory */
 		if (!wtop)
 			memcpy(finfo, fhr, FH_SIZE);
 
@@ -665,34 +684,28 @@ int delete_articles(int ent, FILEHEADER *finfo, char *direct, struct word *wtop,
 		}
 
  		/* write back changes to .DIR file */
-		if (lseek(fd, -((off_t) FH_SIZE), SEEK_CUR) == -1)
-		{
-			flock(fd, LOCK_UN);
-			close(fd);
-			return -1;
-		}
-		if (write(fd, fhr, FH_SIZE) != FH_SIZE)
-		{
-			flock(fd, LOCK_UN);
-			close(fd);
-			return -1;
-		}
+		/* .DIR is locked in this time, and the ent from cursor menu
+		 * is not used. So we don't need safely_substitute_dir here.
+		 */
+		if (substitute_record_byfd(fd, fhr, FH_SIZE, n) == -1)
+			goto err_out;
 
 #ifdef USE_THREADING	/* syhu */
- 		/* update .THREADHEAD & .THREADPOST files */ 
-		if( sync_threadfiles( fhr, direct ) == -1 ) 
-		{
-			flock(fd, LOCK_UN);
-			close(fd);
-			return -1;
- 		}
+ 		/* update .THREADHEAD & .THREADPOST files */
+		if (sync_threadfiles( fhr, direct ) == -1)
+			goto err_out;
 #endif
 	}
-	flock(fd, LOCK_UN);
-	close(fd);
-	if (!in_mail && !in_board)
+	rtval = 0;
+err_out:
+	if (last_deleted)
+		get_last_info(direct, fd, &linfo, TRUE);
+
+	unlock_and_close(fd);
+	if (!rtval && !in_mail && !in_board) /* 精華區直接清除 */
 		pack_article(direct);
-	return 0;
+
+	return rtval;
 }
 
 
@@ -758,16 +771,14 @@ delete_article(int ent, FILEHEADER *finfo, char *direct)
 		if (prompt == _msg_article_6)
 			return C_FOOT;
 	case 'd':
-		if (delete_articles(ent, finfo, direct, clip, ch) == 0 &&
-		    !in_mail && !in_board)
-		{
-			return C_INIT;
-		}
+		delete_articles(ent, finfo, direct, clip, ch);
+		return C_INIT;
 		break;
 	case 'u':
 		if (prompt == _msg_article_8)
 			return C_NONE;
-		delete_articles(ent, finfo, direct, clip, ch);
+		if (delete_articles(ent, finfo, direct, clip, ch))
+			return C_INIT;
 		break;
 	default:
 		return C_FOOT;
@@ -777,16 +788,49 @@ delete_article(int ent, FILEHEADER *finfo, char *direct)
 	return C_LINE;
 }
 
+/*
+ * 清理已標記刪除的文章
+ */
+int
+bm_pack_article(int ent, FILEHEADER *finfo, char *direct)
+{
+	int ch;
 
-/* 
- * mail article to someone in batch mode 
+	/* first check for permission to delete */
+#ifdef GUEST
+	if (!strcmp(curuser.userid, GUEST))
+		return C_NONE;
+#endif
+
+	if (!in_board)
+		return C_NONE;
+
+	if (!hasBMPerm)
+		return C_NONE;
+
+	msg(ANSI_COLOR(1;33) "清理刪除文章"
+	    ANSI_RESET ": 此動作較耗費系統資源, 請一次整理完後再使用. 繼續?(y/n)[n] ");
+
+	/* once delete permission is confirmed, check delete option */
+	ch = igetkey();
+	if (ch == 'y' || ch == 'Y') {
+		pack_article(direct);
+		msg(ANSI_COLOR(1) "清除完畢" ANSI_RESET);
+		ch = igetkey();
+		return C_INIT;
+	}
+
+	return C_FOOT;
+}
+/*
+ * mail article to someone in batch mode
  */
 static int mail_articles(FILEHEADER *finfo, char *direct, char *from, char *to, char ident, struct word *wtop)
 {
 	char fname[PATHLEN];
 	int fd, ms;
 	FILEHEADER *fhr = &fhGol;
-#if 1	
+#if 1
 	int overload = 0;
 #endif
 
@@ -802,21 +846,21 @@ static int mail_articles(FILEHEADER *finfo, char *direct, char *from, char *to, 
 #if 0
 	if (check_mail_num(-1))
 		return -1;
-#endif		
+#endif
 #if 1
 	if (check_mail_num(-1))
 		overload = 1;
-#endif		
+#endif
 
 	if (!wtop)
 	{
-#if 1	
+#if 1
 		if (overload == 1 && !(finfo->accessed & FILE_READ))
 		{
 			check_mail_num(0);
 			return -1;
 		}
-#endif		
+#endif
 		setdotfile(fname, direct, finfo->filename);
 		return SendMail(-1, fname, from, to, finfo->title, ident);
 	}
@@ -825,7 +869,7 @@ static int mail_articles(FILEHEADER *finfo, char *direct, char *from, char *to, 
 	{
 		if ((ms = CreateMailSocket()) > 0)
 		{
-			while (read(fd, fhr, FH_SIZE) == FH_SIZE)
+			while (myread(fd, fhr, FH_SIZE) == FH_SIZE)
 			{
 				if (fhr->accessed & FILE_DELE || fhr->accessed & FILE_TREA)
 					continue;
@@ -846,13 +890,13 @@ static int mail_articles(FILEHEADER *finfo, char *direct, char *from, char *to, 
 			CloseMailSocket(ms);
 		}
 		close(fd);
-#if 1		
+#if 1
 		if (overload > 1)
 		{
 			check_mail_num(0);
 			return -1;
 		}
-#endif		
+#endif
 		return 0;
 	}
 	return -1;
@@ -919,25 +963,13 @@ int mail_article(int ent, FILEHEADER *finfo, char *direct)
 int cross_article(int ent, FILEHEADER *finfo, char *direct)
 {
 	char bname[BNAMELEN], fnori[PATHLEN], title[STRLEN];
-	int tonews;
+	int tonews, rc;
 	BOARDHEADER bh_cross;
-
-#if 0
-	static int cnt = 0;
-
-	if (++cnt > 8)
-	{
-		msg("注意!! 請勿轉貼超過 10 個看板!! 公告事項請張貼 main-menu 板");
-		getkey();
-		if (cnt > 10)
-			return C_NONE;
-	}
-#endif
 
 #ifdef KHBBS
 	msg("注意! 轉貼篇數請勿超過本站規定(請查詢站規第4條), 違者將砍除帳號!");
 	getkey();
-#endif 
+#endif
 
 	if ((finfo->accessed & FILE_DELE) || (finfo->accessed & FILE_TREA))
 		return C_NONE;
@@ -993,24 +1025,20 @@ int cross_article(int ent, FILEHEADER *finfo, char *direct)
 
 #ifdef USE_THREADING	/* syhu */
 	/*  post on board, postpath is NULL */
-/*	
-	if (PublishPost(fnori, curuser.userid, curuser.username, bname, title,
-			curuser.ident, uinfo.from, tonews, NULL, 0, -1, -1) == -1)
-*/			
-	if (PublishPost(fnori, curuser.userid, uinfo.username, bname, title,
-			curuser.ident, uinfo.from, tonews, NULL, 0, -1, -1) == -1)
+	rc = PublishPost(fnori, curuser.userid, uinfo.username, bname, title,
+			curuser.ident, uinfo.from, tonews, NULL, 0, -1, -1);
 #else
-/*
-	if (PublishPost(fnori, curuser.userid, curuser.username, bname, title,
-			curuser.ident, uinfo.from, tonews, NULL, 0) == -1)
-*/			
-	if (PublishPost(fnori, curuser.userid, uinfo.username, bname, title,
-			curuser.ident, uinfo.from, tonews, NULL, 0) == -1)
+	rc = PublishPost(fnori, curuser.userid, uinfo.username, bname, title,
+			curuser.ident, uinfo.from, tonews, NULL, 0);
 #endif
-
-		showmsg(_msg_fail);
-	else
+	if (rc < 0) {
+		if (rc == -2)
+			showmsg("請勿大量轉貼相同文章");
+		else
+			showmsg(_msg_fail);
+	} else {
 		showmsg(_msg_finish);
+	}
 	return C_FULL;
 }
 
@@ -1028,9 +1056,6 @@ static int pushCheckPerm(FILEHEADER *finfo)
 	return 1;
 }
 
-#define ASCII_RED	"\033[1;31m"
-#define ASCII_GREEN	"\033[1;32m"
-#define ASCII_CLEAN	"\033[m"
 /*
  * 推文
  */
@@ -1044,10 +1069,11 @@ int push_article(int ent, FILEHEADER *finfo, char *direct)
 	struct tm *tm;
 	struct stat st;
 
-	if (!pushCheckPerm(finfo))
+	if (!in_board || !pushCheckPerm(finfo))
 		return C_NONE;
 
-	msg("\033[1m<<文章評分>>\033[m [y]推文 [n]呸文 [g]自訂推 [b]自訂呸 [q]放棄：");
+	move(b_lines, 0);
+	msg(ANSI_COLOR(1) "<<文章評分>>\033[m [y]推文 [n]呸文 [g]自訂推 [b]自訂呸 [q]放棄：");
 	ch = igetkey();
 	switch (ch) {
 	case 'y':
@@ -1069,26 +1095,25 @@ int push_article(int ent, FILEHEADER *finfo, char *direct)
 		return C_FULL;
 
 	if (ptr == cyes || ptr == cno) {
-		if (!getdata(b_line, 0, "\033[1;36m自訂：\033[m", ptr, 3, XECHO)) {
+		if (!getdata(b_line, 0, ANSI_COLOR(1;36) "自訂：" ANSI_RESET, ptr, 3, XECHO)) {
 			if (ptr == cyes)
 				ptr = yes;
 			else
 				ptr = no;
 		}
 	}
-	sprintf(msgbuf, "\033[36m%s\033[m %s%s" ASCII_CLEAN "：",
+	sprintf(msgbuf, ANSI_COLOR(36) "%s" ANSI_RESET " %s%s" ANSI_RESET "：",
 		curuser.userid,
-		(ptr == yes || ptr == cyes) ? ASCII_RED : ASCII_GREEN,
+		(ptr == yes || ptr == cyes) ? ANSI_COLOR(1;31) : ANSI_COLOR(1;32),
 		ptr);
 	if (!getdata(b_line, 0, msgbuf, pushline,
 	             PUSHLEN - strlen(curuser.userid) + 1, XECHO))
 		return C_FULL;
 
-	if ((fd = open(direct, O_RDWR)) < 0)
+	if ((fd = open_and_lock(direct)) == -1)
 		return C_FULL;
-	flock(fd, LOCK_EX);
 
-	score = read_pushcnt(ent, direct, fd);
+	score = read_pushcnt(fd, ent, finfo);
 	if (score == PUSH_ERR) {
 		rt = -1;
 		goto push_err;
@@ -1103,19 +1128,20 @@ int push_article(int ent, FILEHEADER *finfo, char *direct)
 	else if ((ptr == no || ptr == cno) && score > SCORE_MIN)
 		--score;
 
-	save_pushcnt(finfo, score);
-	rt = push_one_article(ent, direct, fd, score);
+	rt = push_one_article(direct, fd, ent, finfo, score);
 push_err:
-	flock(fd, LOCK_UN);
-	close(fd);
+	unlock_and_close(fd);
 
-	date = time(NULL);
-	tm = localtime(&date);
 	if (rt == 0) {
+		date = time(NULL);
+		tm = localtime(&date);
 		setdotfile(fn_art, direct, finfo->filename);
 		if ((fd = open(fn_art, O_RDWR | O_APPEND, 0600)) < 0)
 			return C_FULL;
-		flock(fd, LOCK_EX);
+		if (myflock(fd, LOCK_EX)) {
+			close(fd);
+			return C_FULL;
+		}
 
 		ptr = writebuf;
 
@@ -1136,12 +1162,16 @@ push_err:
 
 		flock(fd, LOCK_UN);
 		close(fd);
+	} else {
+		msg(ANSI_COLOR(1;31) "推文失敗: 文章已更動" ANSI_RESET);
+		ch = igetkey();
+		return C_INIT;
 	}
 
 	return C_FULL;
 }
 
-/* 
+/*
  * get a title from user-input
  */
 int set_article_title(char title[])
@@ -1167,7 +1197,6 @@ int set_article_title(char title[])
  */
 int tag_article(int ent, FILEHEADER *finfo, char *direct)
 {
-	extern void *malloc_str();
 	if (!cmp_wlist(artwtop, finfo->filename, strcmp))
 		add_wlist(&artwtop, finfo->filename, malloc_str);
 	else
@@ -1196,7 +1225,7 @@ int range_tag_article(int ent, FILEHEADER *finfo, char *direct)
 	{
 		if (lseek(fd, (off_t) ((n1 - 1) * FH_SIZE), SEEK_SET) != -1)
 		{
-			while (n1 <= n2 && read(fd, fhr, FH_SIZE) == FH_SIZE)
+			while (n1 <= n2 && myread(fd, fhr, FH_SIZE) == FH_SIZE)
 				tag_article(n1++, fhr, direct);
 		}
 		close(fd);

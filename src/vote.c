@@ -25,10 +25,10 @@ extern BOOL hasBMPerm;
 typedef struct VOTE
 {
 	char filename[15];
-	char ident;		
+	char ident;
 	char title[STRLEN];
 	char owner[IDLEN];
-	char allow_ip[27];	
+	char allow_ip[27];
 	time_t start_time;
 	time_t end_time;
 	int tickets;
@@ -50,7 +50,7 @@ static void setvotefile2(char *fname, char *direct, char *vf, char *f)
 
 void DisplayNewVoteMesg()
 {
-	more("doc/NewVote", TRUE);
+	pmore("doc/NewVote", TRUE);
 }
 
 
@@ -88,13 +88,13 @@ static char *Vtime(time_t *ti)
 
 	strftime(timestr, sizeof(timestr), "%Y.%m.%d", localtime(ti));
 	return timestr;
-}				
+}
 
 
-static void vote_entry(const int x, VOTE ent[], const int idx, const int top, const int last, const int rows)
+static void vote_entry(const int x, void *ep, const int idx, const int top, const int last, const int rows)
 {
+	VOTE *ent = (VOTE *)ep;
 	int i, num;
-
 
 	for (i = top - idx; i < rows && i <= last - idx; i++)
 	{
@@ -111,12 +111,12 @@ static void vote_entry(const int x, VOTE ent[], const int idx, const int top, co
 		else
 		{
 			/* kmwang:20000831:¤Å¦A¥Ç, ¤Å±N¨â¬q prints ¦X¨Ö,
-			   ¥Ñ©ó Vtime ¶Ç§}¦^¨Ó, prints ³B²z®É, 
+			   ¥Ñ©ó Vtime ¶Ç§}¦^¨Ó, prints ³B²z®É,
 			   end_time ªº§}±N·|¬O start_time ªº§}. */
 			prints("   %3d %-35.35s %s %s - ",
 			       num, ent[i].title, (ent[i].ident == 7) ? _str_marker : "  ",
 			       Vtime(&(ent[i].start_time)));
-			prints("%s   %2d\n",       
+			prints("%s   %2d\n",
 			       Vtime(&(ent[i].end_time)),
 			       ent[i].tickets);
 		}
@@ -133,8 +133,9 @@ static void cand_title()
 }
 
 
-static void cand_entry(int x, CAND ent[], int idx, int top, int last, int rows)
+static void cand_entry(int x, void *ep, int idx, int top, int last, int rows)
 {
+	CAND *ent = (CAND *)ep;
 	int i, num;
 	unsigned long j;
 
@@ -166,7 +167,7 @@ static int ccmd_enter(int ent, CAND *cinfo, char *direct)
 	if (igetkey() != 'y')
 	{
 		msg(_msg_abort);
-		getkey();	
+		getkey();
 		return C_FULL;
 	}
 
@@ -266,7 +267,7 @@ static int vcmd_desc(int ent, VOTE *vinfo, char *direct)
 {
 	/* ¿ïÁ|»¡©ú */
 	setvotefile2(genbuf, direct, vinfo->filename, "/desc");
-	more(genbuf, TRUE);
+	pmore(genbuf, TRUE);
 
 	return C_FULL;
 }
@@ -319,7 +320,7 @@ static int set_vote(char *path, VOTE *vinfo)
 	memset(genbuf, 0, sizeof(genbuf));
 	if (vinfo->end_time == 0)
 		vinfo->end_time = time(0) + 86400;
-	strcpy(genbuf, Vtime(&(vinfo->end_time)));	
+	strcpy(genbuf, Vtime(&(vinfo->end_time)));
 	if (getdata_str(5, 0, "3) ¹w­p¶}²¼(YYYY.mm.dd) : ", genbuf, 11, ECHONOSP, genbuf))
 		vinfo->end_time = get_time(genbuf);
 
@@ -349,7 +350,7 @@ static int set_vote(char *path, VOTE *vinfo)
 		vinfo->ident = 0;
 
 	if (vinfo->firstlogin != 0)
-		strcpy(genbuf, Vtime(&(vinfo->firstlogin)));		
+		strcpy(genbuf, Vtime(&(vinfo->firstlogin)));
 	else
 		genbuf[0] = '\0';
 	if (getdata_str(10, 0, "8) µù¥U¤é´Á(YYYY.mm.dd)¡G", genbuf, 11, ECHONOSP, genbuf))
@@ -407,6 +408,7 @@ static int vcmd_delete(int ent, VOTE *vinfo, char *direct)
 
 
 /*box*/
+static int vcmd_result(int ent, VOTE *vinfo, char *direct);
 static int vcmd_enter(int ent, VOTE *vinfo, char *direct)
 {
 	char tmpdir[PATHLEN];
@@ -422,15 +424,15 @@ static int vcmd_enter(int ent, VOTE *vinfo, char *direct)
 
 	if (time(0) > vinfo->end_time)
 	{
-		showmsg("§ë²¼¬¡°Ê¦­¤wµ²§ô¤F!");
-		return C_FULL;
+		showmsg("§ë²¼¬¡°Ê¤w¸gµ²§ô¤F, ¬Ý¬Ýµ²ªG§a!");
+		return vcmd_result(ent, vinfo, direct);
 	}
 
 	memset(&MyBox, 0, sizeof(MyBox));
 
 	MyOffset = -1;
 	/* ¬O§_¤w§ë¹L²¼ */
-	j = 1;	
+	j = 1;
 	num = 0;
 	setvotefile2(genbuf, direct, vinfo->filename, "/box");
 	if ((fd = open(genbuf, O_RDONLY)) > 0)
@@ -450,7 +452,7 @@ static int vcmd_enter(int ent, VOTE *vinfo, char *direct)
 	}
 	if (MyOffset == -1)
 		MyOffset = j;
-	
+
 	/* ­YÂ÷¶}®É, userid ¤£¬° '\0', ªí¥Ü¨Ï¥ÎªÌ¦³§ë¤J²¼½cªº°Ê§@µo¥Í */
 	MyBox.userid[0] = '\0';
 	/* ¼Æ¥X±z¤w§ë¤F´X²¼ */
@@ -481,7 +483,7 @@ static int vcmd_enter(int ent, VOTE *vinfo, char *direct)
 
 	cursor_menu(4, 0, tmpdir, cand_comms, sizeof(CAND), &ca_ccur,
 		    cand_title, NULL /* cm_btitle */ , cand_entry, read_get, read_max,
-		    NULL, 1, TRUE, SCREEN_SIZE-4);
+		    NULL, 1, TRUE);
 
 	/* §Ú§ë¹L²¼Åo! */
 	if (MyBox.userid[0])
@@ -544,16 +546,16 @@ static int count_box(char *path, VOTE *vinfo)
 	fprintf(fp, "[1;33;44m %-26.26s [1;37m%12s %10s - %10s %12s [m\n",
 		"¿ïÁ|¦WºÙ", "Á|¿ì¤H", "§ë²¼¶}©l", "¶}²¼®É¶¡", "¨C¤H¥i§ë²¼¼Æ");
 	fprintf(fp, " %-26.26s %12s %10s - %10s %12d\n",
-		vinfo->title, vinfo->owner, 
-		Vtime(&(vinfo->start_time)),		
-		Vtime(&(vinfo->end_time)),		
+		vinfo->title, vinfo->owner,
+		Vtime(&(vinfo->start_time)),
+		Vtime(&(vinfo->end_time)),
 		vinfo->tickets);
 
 	fprintf(fp, "[7m §ë²¼¤H­­¨î¡G                 %15s %4s %6s %6s %12s[m\n",
 		"¤W¯¸¨Ó·½", "µ¥¯Å", "¤W¯¸¼Æ", "±i¶K¼Æ", "µù¥U®É¶¡");
 	fprintf(fp, "                              %15s %4d %6d %6d %12s\n",
 		*(vinfo->allow_ip) ? vinfo->allow_ip : "¤£­­",
-		vinfo->userlevel, vinfo->numlogins, vinfo->numposts, 
+		vinfo->userlevel, vinfo->numlogins, vinfo->numposts,
 		(vinfo->firstlogin) ? Vtime(&(vinfo->firstlogin)) : "¤£­­");
 
 	fprintf(fp, "[1;37;42m      %4s  %6s    %-55s [m\n",
@@ -565,10 +567,10 @@ static int count_box(char *path, VOTE *vinfo)
 	fprintf(fp, "    Á`²¼¼Æ¡G%6d\n", n_tickets);
 	fprintf(fp, "    Á`¤H¼Æ¡G%6d\n", n_users);
 
-	close(fd);	
+	close(fd);
 	fclose(fp);
 	chmod(fn_result, 0644);
-	
+
 	return 0;
 }
 
@@ -588,7 +590,7 @@ static int vcmd_result(int ent, VOTE *vinfo, char *direct)
 	}
 
 	setvotefile2(fn_result, direct, vinfo->filename, "/result");
-	if (!(stat(fn_result, &st) == 0 && st.st_size > 0 
+	if (!(stat(fn_result, &st) == 0 && st.st_size > 0
 	    && st.st_mtime >= vinfo->end_time))
 	{
 		/* ²Î­p²¼½c */
@@ -610,7 +612,7 @@ static int vcmd_result(int ent, VOTE *vinfo, char *direct)
 			fclose(fpr);
 		}
 	}
-	more(fn_result, TRUE);
+	pmore(fn_result, TRUE);
 
 	return C_FULL;
 }
@@ -668,7 +670,7 @@ static int vcmd_info(int ent, VOTE *vinfo, char *direct)
 
 static int vcmd_help(int ent, VOTE *vinfo, char *direct)
 {
-	more("doc/VOTE_HELP", TRUE);
+	pmore("doc/VOTE_HELP", TRUE);
 	return C_FULL;
 }
 
@@ -714,8 +716,8 @@ int v_board()
 	setvotefile(tmpdir, CurBList->filename, VOTE_REC);
 
 	cursor_menu(4, 0, tmpdir, vote_comms, sizeof(VOTE), &v_ccur,
-		    vote_title, NULL /* vote_btitle */ , vote_entry, read_get, 
-		    read_max, NULL, 1, TRUE, SCREEN_SIZE-4);
+		    vote_title, NULL /* vote_btitle */ , vote_entry, read_get,
+		    read_max, NULL, 1, TRUE);
 
 	return C_LOAD;
 }

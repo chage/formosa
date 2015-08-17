@@ -4,10 +4,6 @@
 
 #include "bbs.h"
 
-
-extern char *genpasswd();
-
-
 void usage(char *prog)
 {
 #ifdef USE_IDENT
@@ -20,7 +16,6 @@ void usage(char *prog)
 	fflush(stderr);
 #endif
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -48,7 +43,7 @@ int main(int argc, char *argv[])
 		case 'i':
 #ifdef USE_IDENT
 			urec.ident = atoi(optarg);
-#endif			
+#endif
 			break;
 		case '?':
 		default:

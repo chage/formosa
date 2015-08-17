@@ -1,6 +1,6 @@
 /*
  * Virtual TTY, Standalone BBS Daemon.
- * 本程式用來取代 Telnetd, 並成為 Server, 使ＢＢＳ不需要 TTY   
+ * 本程式用來取代 Telnetd, 並成為 Server, 使ＢＢＳ不需要 TTY
  * Ming-Jang Liang, lmj@cc.nsysu.edu.tw, 10/03/96
  */
 
@@ -20,10 +20,10 @@
 #include <netdb.h>
 #include <syslog.h>
 #include <pwd.h>
+#include <grp.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <arpa/telnet.h>
 #include <fcntl.h>
 #include <stdlib.h>
 
@@ -43,13 +43,11 @@
 
 #include "struct.h"
 #include "globals.h"
-
+#include "tsbbs.h"
 
 extern int errno;
 
-char *telnet();
-
-short check = 0;
+static char check = 0;
 
 #undef DEBUG
 
@@ -74,9 +72,9 @@ struct sockaddr_in *from;
 int argc;
 char *argv[];
 {
-	char *host, term[8];
+	char *host;
 	int on;
-	extern int Formosa(char *host, char *term, int argc, char **argv);
+	socklen_t len;
 
 #if 0
 	on = 1;
@@ -88,8 +86,8 @@ char *argv[];
 		struct sockaddr_in cli;
 
 		from = &cli;
-		on = sizeof(*from);
-		getsockname(1, (struct sockaddr *) from, &on);	/* cannot work correctly ? */
+		len = sizeof(*from);
+		getsockname(1, (struct sockaddr *) from, &len);	/* cannot work correctly ? */
 	}
 	host = inet_ntoa(from->sin_addr);
 #if 1
@@ -100,20 +98,39 @@ char *argv[];
 		sleep(3);
 	}
 	else
-#endif	
-		Formosa(host, telnet_init(), argc, argv);
+#endif
+	telnet_init();
+	Formosa(host, argc, argv);
 
 	shutdown(0, 2);
 	exit(0);
 }
 
+#define MAGIC_STR "Formosa!@#$\%^&*()"
 
-int
-main(argc, argv)
-int argc;
-char *argv[];
+void mod_ps_display(int argc, char *argv[], const char *disp)
+{
+	int i, len1, len2;
+
+	if (!disp)
+		return;
+
+	len1 = strlen(disp);
+	len2 = strlen(MAGIC_STR);
+	if (len1 < len2) {
+		for (i = len1; i < len2; ++i)
+			argv[argc-1][i] = ' ';
+		argv[argc-1][i] = '\0';
+	} else if (len1 > len2) {
+		len1 = len2;
+	}
+	strncpy(argv[argc-1], disp, len1);
+}
+
+int main(int argc, char *argv[])
 {
 	int aha, on = 1;
+	socklen_t len;
 	struct sockaddr_in from, sin;
 	int s = 0, ns;
 	struct pollfd pd;
@@ -122,22 +139,24 @@ char *argv[];
 #if defined(SOLARIS)
 	struct sigaction sact, oact;
 #endif
+	char *myargv[5], portstr[12];
 
-	if (argc > 3)
+	if (argc > 4 ||
+		(argc == 4 && strcmp(argv[3], MAGIC_STR)))
 	{
 		printf("Usage: %s PortNumber [check]\n", argv[0]);
 		exit(1);
 	}
 
-	port = 23;
+	port = BBS_TCP_PORT;
 	inetd = 0;
-	
+
 	if (argc > 1)
 	{
 		if (!strcmp(argv[1], "-i"))
 			inetd = 1;
 		else
-		{	
+		{
 			if ((port = atoi(argv[1])) <= 0)
 			{
 				fprintf(stderr, "invalid port number\n");
@@ -147,12 +166,30 @@ char *argv[];
 	}
 
 	if (argc > 2 && !strcmp(argv[2], "check"))
-		check++;
+		check = 1;
+
+	if (strcmp(argv[argc-1], MAGIC_STR)) {
+		myargv[0] = argv[0];
+		if (inetd) {
+			myargv[1] = "-i";
+		} else {
+			sprintf(portstr, "%u", port);
+			myargv[1] = portstr;
+		}
+		s = 2;
+		if (check)
+			myargv[s++] = "check";
+		myargv[s++] = MAGIC_STR;
+		myargv[s] = NULL;
+		execv(myargv[0], myargv);
+	}
+
+	mod_ps_display(argc, argv, "[Listen]");
 
 #ifndef DEBUG
 	if (fork() != 0)
 		exit(0);
-#endif		
+#endif
 
 	setsid();
 
@@ -171,7 +208,7 @@ char *argv[];
 		ioctl(aha, TIOCNOTTY, (char *)0);
 		close(aha);
 	}
-#endif	
+#endif
 
 	for (aha = getdtablesize(); aha > 2; aha--)
 		close(aha);
@@ -189,7 +226,7 @@ char *argv[];
 #ifndef DEBUG
 		if (fork() != 0)
 			exit(0);
-#endif			
+#endif
 
 		if ((s = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 			exit(1);
@@ -239,7 +276,7 @@ char *argv[];
 #if 1
 	if (check)
 		host_deny((char *) NULL);	/* init host deny table */
-#endif		
+#endif
 
 	utmp_semid = sem_init(UTMPSEM_KEY);
 
@@ -249,7 +286,7 @@ char *argv[];
 		/* UNREACHED */
 	}
 
-	aha = sizeof(from);
+	len = sizeof(from);
 
 	pd.fd = s;
 	pd.events = POLLIN;
@@ -276,7 +313,7 @@ char *argv[];
 		if (!(pd.events & pd.revents))
 			continue;
 
-		if ((ns = accept(s, (struct sockaddr *) &from, (int *) &aha)) < 0)
+		if ((ns = accept(s, (struct sockaddr *) &from, &len)) < 0)
 			continue;
 		else
 		{
@@ -298,91 +335,3 @@ char *argv[];
 		}
 	}
 }
-
-#if 0
-
-char *
-telnet(term)
-char *term;
-{
-	int aha;
-	unsigned ibuf[80], *p;
-	unsigned char o1[] =
-	{IAC, DO, TELOPT_TTYPE};
-	unsigned char o2[] =
-	{IAC, WILL, TELOPT_ECHO};
-	unsigned char o3[] =
-	{IAC, WILL, TELOPT_SGA};
-	unsigned char o4[] =
-	{IAC, DO, TELOPT_ECHO};
-	unsigned char o5[] =
-	{IAC, DO, TELOPT_BINARY};
-	int igetch();
-
-	aha = 1;
-	*term = '\0';
-#if 0
-/*  del by lthuang, bcz linux will down when using non-blocking */
-#ifndef      SOLARIS
-	ioctl(0, FIONBIO, &aha);
-#endif
-#endif
-
-#ifdef SO_OOBINLINE
-	setsockopt(0, SOL_SOCKET, SO_OOBINLINE, (char *) &aha, sizeof aha);
-#endif
-
-	ibuf[0] = 0;
-
-	sprintf((char *) (ibuf + 1), "\r\n\r\n☆ %s ☆\r\n\r\r\n\r", BBSTITLE);
-	write(1, ibuf, strlen((char *) (ibuf + 1)) + 1);
-	write(1, o1, sizeof(o1));
-	fflush(stdout);
-
-	for (aha = 0; aha < 3; aha++)
-	{
-		ibuf[aha] = igetch();
-#ifdef	DEBUG
-		fprintf(stdout, "[%d]\n", ibuf[aha]);
-		fflush(stdout);
-#endif
-	}
-	if (ibuf[0] == IAC && ibuf[1] == WILL && ibuf[2] == TELOPT_TTYPE)
-	{
-		unsigned char oo[] =
-		{IAC, SB, TELOPT_TTYPE, TELQUAL_SEND, IAC, SE};
-
-		write(1, oo, sizeof(oo));
-		for (aha = 0; aha < 4; aha++)
-			ibuf[aha] = igetch();
-		if (ibuf[0] == IAC && ibuf[3] == TELQUAL_IS)
-		{
-			p = ibuf;
-			while (1)
-			{
-				*p = igetch();
-				if (*p == IAC)
-				{
-					*p = '\0';
-					igetch();
-					break;
-				}
-				else
-					p++;
-			}
-			strncpy(term, (char *) &ibuf[0], 8);
-#ifdef	DEBUG
-			fprintf(stdout, "term = [%s]\n", ibuf);
-			fflush(stdout);
-#endif
-		}
-	}
-
-	write(1, o2, sizeof(o2));
-	write(1, o3, sizeof(o3));
-	write(1, o4, sizeof(o4));
-	write(1, o5, sizeof(o5));
-	return term;
-}
-
-#endif

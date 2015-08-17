@@ -42,6 +42,7 @@ for i in 0 a b c d e f g h i j k l m n o p q r s t u v w x y z ;
 do
     ${INSTALL} -d -g bbs -o bbs ${HOMEBBS}/home/$i
     ${INSTALL} -d -g bbs -o bbs ${HOMEBBS}/mail/$i
+    ${INSTALL} -d -g bbs -o bbs ${HOMEBBS}/note/$i
 done   
 
 for i in current output cancel input record ;
@@ -64,8 +65,5 @@ do
 done
 
 (cd ${HOMEBBS}/boards; ln -s ../ID . )
-
-${INSTALL} -m 770 -g bbs -o bbs /bin/sort     ${HOMEBBS}/bin
-${INSTALL} -m 770 -g bbs -o bbs /usr/bin/uuencode ${HOMEBBS}/bin
 
 echo "Install finished..."

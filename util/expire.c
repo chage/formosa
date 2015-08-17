@@ -65,15 +65,18 @@ int num;
 	if (!strcmp(bname, "test"))
 	{
 		time_t now;
-		
+
 		time(&now);
-		
+
 	}
-#endif	
+#endif
 	sprintf(genbuf, "%s/%s/%s", BBSPATH_BOARDS, bname, DIR_REC);
 	if ((fd = open(genbuf, O_RDWR)) > 0)
 	{
-		flock(fd, LOCK_EX);
+		if (myflock(fd, LOCK_EX)) {
+			close(fd);
+			return;
+		}
 #ifdef DEBUG
 		printf("\nShould_Del_Num: %d", num);
 #endif
@@ -134,7 +137,7 @@ char bname[];
 #ifdef NSYSUBBS1
 	if (!strncmp(bname, "cna-", 4))
 		post = 1000;
-#endif	
+#endif
 	if (total - post + range > 0)
 	{
 		Delete_Post(bname, total - post + range);
@@ -152,11 +155,12 @@ char *argv[];
 	int fd;
 	struct boardheader bhead;
 	char boarddirect[PATHLEN];
+	char *bname = NULL;
 
 	DefPost = DEFPOST;
 	DefRange = DEFRANGE;
 
-	if (argc != 3)
+	if (argc != 3 && argc != 4)
 	{
 		printf("syntax:\n   %s [posts] [range]\n\
 First [posts] - [range] posts will be deleted.\n", argv[0]);
@@ -165,30 +169,40 @@ First [posts] - [range] posts will be deleted.\n", argv[0]);
 
 	DefPost = atoi(argv[1]);
 	DefRange = atoi(argv[2]);
+	if (argc == 4)
+		bname = argv[3];
 
 	init_bbsenv();
 
 	if (DefRange > DefPost)
 		DefRange = DefPost / PROPORTION;
 
-	if ((fd = open(BOARDS, O_RDONLY)) < 0)
-	{
-		printf("\nError: cannot open file: %s\n", BOARDS);
-		exit(-1);
+	if (bname) {
+			if (Check_Board(bname) > 0) {
+				setboardfile(boarddirect, bname, DIR_REC);
+				pack_article(boarddirect);
+				set_brdt_numposts(bname, TRUE);
+			}
+	} else {
+		if ((fd = open(BOARDS, O_RDONLY)) < 0)
+		{
+			printf("\nError: cannot open file: %s\n", BOARDS);
+			exit(-1);
+		}
+
+		while (read(fd, &bhead, sizeof(bhead)) == sizeof(bhead))
+		{
+	#ifdef DEBUG
+			printf("\nCheck Board [%s]", bhead.filename);
+	#endif
+			Check_Board(bhead.filename);
+
+			setboardfile(boarddirect, bhead.filename, DIR_REC);
+			pack_article(boarddirect);
+			set_brdt_numposts(bhead.filename, TRUE);	/* lthuang: 99/08/20 */
+		}
+		close(fd);
 	}
 
-	while (read(fd, &bhead, sizeof(bhead)) == sizeof(bhead))
-	{
-#ifdef DEBUG
-		printf("\nCheck Board [%s]", bhead.filename);
-#endif
-		Check_Board(bhead.filename);
-
-		setboardfile(boarddirect, bhead.filename, DIR_REC);
-		pack_article(boarddirect);
-		set_brdt_numposts(bhead.filename, TRUE);	/* lthuang: 99/08/20 */
-	}
-
-	close(fd);
 	exit(0);
 }

@@ -9,14 +9,14 @@
 
 
 /**************************************************************
- * ÀË¬d­Ó¤H«H½c Mail ¼Æ¶q 
+ * ÀË¬d­Ó¤H«H½c Mail ¼Æ¶q
  **************************************************************/
 BOOL check_mail_num(int opt)
 {
 	static int num_mails = -1;
 	int num_delete = 0;
 	static int maxkeepmail = -1;
-	
+
 
 	/* initialize */
 	if (maxkeepmail == -1)
@@ -35,7 +35,7 @@ BOOL check_mail_num(int opt)
                         maxkeepmail = MAX_KEEP_MAIL;
         }
 
-/* 
+/*
 disable
 	if (HAS_PERM(PERM_SYSOP))
 		return FALSE;
@@ -94,7 +94,7 @@ struct word *mg_wlist = NULL;
 static int mail_group(char *fname, char *title)
 {
 	int msNew;
-	struct word *wcur;	
+	struct word *wcur;
 
 	if (!mg_wlist || check_mail_num(0))
 		return -1;
@@ -110,19 +110,20 @@ static int mail_group(char *fname, char *title)
 		/* TODO: check return vaule ? */
 #ifndef IGNORE_CASE
                 SendMail(msNew, fname, curuser.userid, curuser.userid, genbuf,
+			curuser.ident);
 #else
                 SendMail(msNew, fname, strcasecmp(curuser.fakeuserid,
 curuser.userid)? curuser.userid:curuser.fakeuserid, curuser.userid, genbuf,
-#endif
 			curuser.ident);
+#endif
 	}
 
 	/* delivery mail for the assigned list */
 	for (wcur = mg_wlist; wcur; wcur = wcur->next)
 	{
-		if (!wcur->word || !wcur->word[0])	
+		if (!wcur->word || !wcur->word[0])
 			continue;
-		/* TODO: check return vaule ? */			
+		/* TODO: check return vaule ? */
 		SendMail(msNew, fname, curuser.userid, wcur->word, title,
 			curuser.ident);
 	}
@@ -143,7 +144,7 @@ static int show_wlist(struct word *wtop)
 
 	for (wcur = wtop; wcur; wcur = wcur->next)
 	{
-		if (wcur->word && wcur->word[0])		
+		if (wcur->word && wcur->word[0])
 		{
 			move(y, x);
 			prints("%d) %s", ++cnt, wcur->word);
@@ -197,7 +198,7 @@ static int set_group()
 				getkey();
 				break;
 			}
-			
+
 			if (getdata(2, 0, _msg_receiver, strName, sizeof(strName), ECHONOSP))
 			{
 #ifdef IGNORE_CASE
@@ -227,21 +228,21 @@ static int set_group()
 				char *cbegin, *cend;
 
 				malloc_array(&friend_cache, ufile_overrides);
-				for (cbegin = friend_cache.ids; 
+				for (cbegin = friend_cache.ids;
 					cbegin - friend_cache.ids < friend_cache.size; cbegin = cend + 1)
 				{
 					for (cend = cbegin; *cend; cend++)
 						/* NULL STATEMENT */;
 					if (!*cbegin)
 						continue;
-						
+
 					if (num_send >= MAX_MAILGROUPS)
 					{
 						prints(_msg_mail_group_max_prompt, MAX_MAILGROUPS);
 						getkey();
 						break;
 					}
-						
+
 					if (!cmp_wlist(mg_wlist, cbegin, strcmp))
 					{
 						add_wlist(&mg_wlist, cbegin, malloc_str);
@@ -274,7 +275,7 @@ static int set_group()
 
 
 /*
- * grouply send mail, in cursor menu 
+ * grouply send mail, in cursor menu
  */
 int m_group()
 {
@@ -293,8 +294,8 @@ int m_group()
 
 	if (set_group() != -1 && set_article_title(strTitle) != -1)
 	{
-		char fnameTmp[PATHLEN];		
-			
+		char fnameTmp[PATHLEN];
+
 		sprintf(fnameTmp, "tmp/groupmail%05d", (int) getpid());
 		unlink(fnameTmp);
 		update_umode(SMAIL);
@@ -318,7 +319,7 @@ int m_group()
 int m_send(int ent, FILEHEADER *finfo, char *direct)
 {
 	char strTo[STRLEN] = "", strTitle[STRLEN] = "";
-	
+
 
 	clear();
 	/* fn_src: NULL, postpath: NULL */
@@ -339,20 +340,20 @@ int m_new()
 
 /* kmwang: ¦AÅª·s«H®É´£¿ô user ¦¬«H¦^¥h */
 #ifdef MAILWARN
-	more(MAIL_WARN, TRUE);
+	pmore(MAIL_WARN, TRUE);
 #endif
 
 	if ((fd = open(ufile_mail, O_RDONLY)) < 0)
 		return C_FULL;
 
 	in_mail = TRUE;	/* lthuang */
-	
+
 	do
 	{
 		update_umode(RMAIL);
 		lseek(fd, 0, SEEK_SET);
 		ent = 0;
-	
+
 		while (read(fd, &fhn, sizeof(fhGol)) == sizeof(fhGol))
 		{
 			ent++;
@@ -373,7 +374,7 @@ int m_new()
 				close(fd);
 				in_mail = FALSE;	/* lthuang */
 				return C_FULL;
-				
+
 			default:
 				break;
 			}
@@ -386,8 +387,8 @@ int m_new()
 		pressreturn();
 	}
 	while (check_mail_num(1));
-	
-	close(fd);	
+
+	close(fd);
 	in_mail = FALSE;	/* lthuang */
 	return C_FULL;
 }
@@ -398,7 +399,7 @@ int m_new()
  */
 static int mail_help(int ent, FILEHEADER *finfo, char *direct)
 {
-	more(MAIL_HELP, TRUE);
+	pmore(MAIL_HELP, TRUE);
 	return C_FULL;
 }
 
@@ -414,7 +415,7 @@ static void mail_title()
 (d)§R°£ (E)­×§ï½s¿è (m)±H¥X (x)Âà¶K (g)«O¯d«H¥ó (HOME)­º½g ($)¥½½g ");
 #if defined(NSYSUBBS1) || defined(KHBBS) /* sarek:09/23/2001:°ª¥«¸ê±Ð­n¨D */
 	outs("(Ctrl-X)±ÄÃÒ");
-#endif	
+#endif
 	outs("\n\
 [7m   ½s¸¹     µo«H¤H         ¤é´Á    ¼ÐÃD                                       [m");
 }
@@ -424,9 +425,9 @@ static void mail_title()
 static int capture_mail(int ent, FILEHEADER *finfo, char *direct)
 {
 	char fnori[PATHLEN];
-	
-	
-	msg("<<«H¥ó±ÄÃÒ>: §A¦P·N­n±N«H¥ó±ÄÃÒ¦Ü %s ªO¶Ü (y/n)? [n]: ", 
+
+
+	msg("<<«H¥ó±ÄÃÒ>: §A¦P·N­n±N«H¥ó±ÄÃÒ¦Ü %s ªO¶Ü (y/n)? [n]: ",
 		CAPTURE_BOARD);
 	if (igetkey() != 'y')
 	{
@@ -434,23 +435,23 @@ static int capture_mail(int ent, FILEHEADER *finfo, char *direct)
 		getkey();
 		return C_FOOT;
 	}
-	
+
 	setdotfile(fnori, direct, finfo->filename);
 	/*  post on board, postpath is NULL */
 #ifdef	USE_THREADING	/* syhu */
 /*
-	if (PublishPost(fnori, curuser.userid, curuser.username, CAPTURE_BOARD, 
-		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0,-1,-1) == -1)
-*/		
-	if (PublishPost(fnori, curuser.userid, uinfo.username, CAPTURE_BOARD, 
-		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0,-1,-1) == -1)
+	if (PublishPost(fnori, curuser.userid, curuser.username, CAPTURE_BOARD,
+		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0,-1,-1) < 0)
+*/
+	if (PublishPost(fnori, curuser.userid, uinfo.username, CAPTURE_BOARD,
+		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0,-1,-1) < 0)
 #else
 /*
-	if (PublishPost(fnori, curuser.userid, curuser.username, CAPTURE_BOARD, 
-		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0) == -1)
-*/		
-	if (PublishPost(fnori, curuser.userid, uinfo.username, CAPTURE_BOARD, 
-		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0) == -1)
+	if (PublishPost(fnori, curuser.userid, curuser.username, CAPTURE_BOARD,
+		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0) < 0)
+*/
+	if (PublishPost(fnori, curuser.userid, uinfo.username, CAPTURE_BOARD,
+		"[«H¥ó°O¿ý]", curuser.ident, uinfo.from, FALSE, NULL, 0) < 0)
 #endif
 		showmsg(_msg_fail);
 	else
@@ -492,14 +493,14 @@ int m_read()
 		{'+', resv_forward},
 #if defined(NSYSUBBS1) || defined(KHBBS) /* sarek:09/23/2001:°ª¥«¸ê±Ð­n¨D */
 		{CTRL('X'), capture_mail},
-#endif	
+#endif
 		{'\0', NULL}
 	};
-	
+
 
 /* kmwang: Åª«H®É´£¿ô user ¦¬«H¦^¥h */
 #ifdef MAILWARN
-        more(MAIL_WARN, TRUE);
+        pmore(MAIL_WARN, TRUE);
 #endif
 
 	in_mail = TRUE;		/* lthuang */
@@ -511,7 +512,7 @@ int m_read()
 
 		cursor_menu(4, 0, tmpdir, mail_comms, FH_SIZE, &mail_ccur,
 			    mail_title, read_btitle,
-			    read_entry, read_get, read_max, NULL, 1, FALSE, SCREEN_SIZE-4);
+			    read_entry, read_get, read_max, NULL, 1, FALSE);
 	}
 	while (check_mail_num(1));
 

@@ -9,50 +9,35 @@ extern struct commands MainMenu[];
 /*******************************************************************
  * Admin Menu
  *******************************************************************/
-extern int adminMaintainUser(), adminCreateBoard(), adminMaintainBoard(), 
-	adminEditConf(), adminListUsers(), adminBroadcast(), adminMailBm();
-
-#ifdef USE_DELUSER
-extern int adminDeleteUser();
-#endif
-#if defined(NSYSUBBS1) || defined(NSYSUBBS3) /* sarek:12/15/2001 */
-extern int adminCancelUser();
-#endif
-#ifndef NSYSUBBS
-extern int adminSyscheck();
-#endif
-
-#if 0
-extern int adminKickUser();
-#endif
 
 struct commands AdminMenu[] =
 {
 	{'i', PERM_SYSOP, NULL, adminMaintainUser, ADMIN, "User Info", "§ó§ï¨Ï¥ÎªÌ¸ê®Æ"},
+	{'l', PERM_SYSOP, NULL, adminDisplayUserLog, ADMIN, "User Log", "Åã¥Ü¨Ï¥ÎªÌ°O¿ý"},
 #ifdef USE_DELUSER
 	{'d', PERM_SYSOP, NULL, adminDeleteUser, ADMIN, "Delete User", "§R°£¤@¦ì¨Ï¥ÎªÌ"},
 #endif
 	{'n', PERM_SYSOP, NULL, adminCreateBoard, ADMIN, "New Board", "«Ø¥ß·s¬ÝªO"},
 	{'m', PERM_SYSOP, NULL, adminMaintainBoard, ADMIN, "Modify Board", "§ó§ï/§R°£/¾ã²z¬ÝªO³]©w"},
 	{'e', PERM_SYSOP, NULL, adminEditConf, ADMIN, "Edit Config", "½s¿è³]©wÀÉ®×"},
-    {'u', PERM_SYSOP, NULL, adminListUsers, LAUSERS, "List All Users", "¦C¥X©Ò¦³¨Ï¥ÎªÌ"},
-#if 0    
+	{'u', PERM_SYSOP, NULL, adminListUsers, LAUSERS, "List All Users", "¦C¥X©Ò¦³¨Ï¥ÎªÌ"},
+#if 0
 	{'k', PERM_SYSOP, NULL, adminKickUser, ADMIN, "Kick User", "±N½u¤W¨Ï¥ÎªÌÂ_½u"},
-#endif	
+#endif
 	{'a', PERM_SYSOP, NULL, adminBroadcast, SENDMSG, "BroadCast", "¥þ¯¸¼s¼½"},
 	{'b', PERM_SYSOP, NULL, adminMailBm, SMAIL, "Mail to all BMs", "±H«Hµ¹©Ò¦³ªO¥D"},
 #if defined(NSYSUBBS1) || defined(NSYSUBBS3) /* sarek:03/30/2001 */
 /* TODO */
 	{'c', PERM_SYSOP, NULL, adminCancelUser, ADMIN, "Cancel User", "°±¥Î¨Ï¥ÎªÌ±b¸¹"},
-#endif	
+#endif
 #ifndef NSYSUBBS
 	{'s', PERM_SYSOP, NULL, adminSyscheck, ADMIN, "Manually Check Ident", "¤â°Ê¨­¥÷»{ÃÒ"},
-#endif	
+#endif
 #ifdef ANIMEBBS
 	{'a', PERM_SYSOP, MainMenu, NULL, ADMIN, "Admin Menu", "¯«©x±K·µ"},
 #else
 	{'a', PERM_SYSOP, MainMenu, NULL, ADMIN, "Admin Menu", "ºÞ²zªÌ¿ì¤½«Ç"},
-#endif	
+#endif
 	{0, PERM_SYSOP, NULL, NULL, 0, NULL, NULL}
 };
 
@@ -60,16 +45,6 @@ struct commands AdminMenu[] =
 /*******************************************************************
  * Xyz Menu
  *******************************************************************/
-extern int x_info(), x_override(), x_signature(), x_plan(), x_date(), x_viewnote(),
-    x_uflag(), x_bakpro(), x_blacklist();
-
-#ifdef USE_IDENT
-extern int x_idcheck();
-#endif
-#ifdef STRIP_ANSI_USERNAME
-extern int x_username();
-#endif
-
 
 struct commands XyzMenu[] =
 {
@@ -85,14 +60,7 @@ struct commands XyzMenu[] =
 #ifdef USE_IDENT
 	{'c', 1, NULL, x_idcheck, 0, "ID Check", "¶i¦æ¨­¥÷½T»{"},
 #endif
-#ifdef STRIP_ANSI_USERNAME
-	{'f', 1, NULL, x_username, 0, "Fix username", "¥h°£¼ÊºÙ±m¦â±±¨î½X"},
-#endif	
-#ifdef ANIMEBBS
-	{'x', 0, MainMenu, NULL, XMENU, "Xyz Menu", "¤u¨ãµó"},
-#else
 	{'x', 0, MainMenu, NULL, XMENU, "Xyz Menu", "­Ó¤H¸ê®ÆºûÅ@¤u¨ã½c"},
-#endif	
 	{0, 0, NULL, NULL, 0, NULL, NULL}
 };
 
@@ -100,7 +68,6 @@ struct commands XyzMenu[] =
 /*******************************************************************
  * Mail Menu
  *******************************************************************/
-extern int m_new(), m_read(), m_send(), m_group();
 
 struct commands MailMenu[] =
 {
@@ -112,7 +79,7 @@ struct commands MailMenu[] =
 	{'m', 0, MainMenu, NULL, MAIL, "Mail Menu", "³½¶­©¹ªð«F"},
 #else
 	{'m', 0, MainMenu, NULL, MAIL, "Mail Menu", "­Ó¤H«H½c"},
-#endif	
+#endif
 	{0, 0, NULL, NULL, 0, NULL, NULL}
 };
 
@@ -120,9 +87,6 @@ struct commands MailMenu[] =
 /*******************************************************************
  * Talk Menu
  *******************************************************************/
-extern int t_query(), t_talk(), t_chat(), x_override(), t_list(), t_friends(),
-    t_msq(), t_fmsq(), t_review(), t_pager(), t_bpager();
-
 
 struct commands TalkMenu[] =
 {
@@ -132,10 +96,10 @@ struct commands TalkMenu[] =
 	{'p', 1, NULL, t_pager, PAGE, "Pager Switch", "¤Á´«²á¤Ñ©I³ê¹a"},
 	{'d', 1, NULL, t_bpager, PAGE, "Broadcast Pager Switch", "¤Á´«¼s¼½©I³ê¹a"},
 	{'t', 1, NULL, t_talk, PAGE, "Talk", "Âù¤H½Í¤ß¶®«Ç"},
-	{'w', 1, NULL, t_msq, SENDMSG, "Send Message", "½u¤W°e°T®§"},
-	{'b', 1, NULL, t_fmsq, SENDMSG, "BroadCast", "°e°T®§µ¹¦n¤Í"},
-	{'r', 1, NULL, t_review, SENDMSG, "Review Message", "¦^ÅU½u¤W°T®§"},
 	{'c', 3, NULL, t_chat, CHATROOM, "BBS Chat Room", "¯¸¤º²á¤Ñ¼s³õ"},
+	{'b', 1, NULL, t_fmsq, SENDMSG, "BroadCast", "°e°T®§µ¹¦n¤Í"},
+	{'w', 1, NULL, t_msq, SENDMSG, "Send Message", "½u¤W°e°T®§"},
+	{'r', 1, NULL, t_review, SENDMSG, "Review Message", "¦^ÅU½u¤W°T®§"},
 	{'t', 0, MainMenu, NULL, TMENU, "Talk Menu", "¥ð¶¢²á¤Ñ¶é¦a"},
 	{0, 0, NULL, NULL, 0, NULL, NULL}
 };
@@ -144,11 +108,6 @@ struct commands TalkMenu[] =
 /*******************************************************************
  * Main Menu
  *******************************************************************/
-extern int Select(), Goodbye(), Boards(), Class(), Announce(), MainRead();
-
-#ifdef USE_MULTI_LANGUAGE
-extern int x_lang();
-#endif
 
 #ifdef ANIMEBBS
 struct commands MainMenu[] =
@@ -161,9 +120,9 @@ struct commands MainMenu[] =
 	{'t', 0, &(TalkMenu[0]), NULL, TMENU, "Talk Menu", "¦³½t¤d¨½¬Û³{ÆU"},
 	{'m', 1, &(MailMenu[0]), NULL, MAIL, "Mail Menu", "³½¶­©¹ªð«F"},
 	{'x', 0, &(XyzMenu[0]), NULL, XMENU, "Xyz Utilities", "¤u¨ãµó"},
-#ifdef USE_MULTI_LANGUAGE	
+#ifdef USE_MULTI_LANGUAGE
 	{'l', 0, NULL, x_lang, 0, "Language switch", "¤Á´«»y¨¥ª©¥»"},
-#endif	
+#endif
 	{'g', 0, NULL, Goodbye, 0, "Goodbye", "¤p§O¥ì²úµ^´µ"},
 	{'a', PERM_SYSOP, &(AdminMenu[0]), NULL, ADMIN, "Admin Menu", "¯«©x±K·µ"},
 	{'0', 0, NULL, NULL, MMENU, "Main Menu", "¥D¿ï³æ"},
@@ -179,10 +138,10 @@ struct commands MainMenu[] =
 	{'r', 0, NULL, MainRead, READING, "Read", "Åª¨ú§G§i"},
 	{'t', 0, &(TalkMenu[0]), NULL, TMENU, "Talk Menu", "¥ð¶¢²á¤Ñ¶é¦a"},
 	{'m', 1, &(MailMenu[0]), NULL, MAIL, "Mail Menu", "­Ó¤H¶l¥ó«H½c"},
-    {'x', 0, &(XyzMenu[0]), NULL, XMENU, "Xyz Utilities", "­Ó¤H¸ê®ÆºûÅ@¤u¨ã½c"},
-#ifdef USE_MULTI_LANGUAGE    
+	{'x', 0, &(XyzMenu[0]), NULL, XMENU, "Xyz Utilities", "­Ó¤H¸ê®ÆºûÅ@¤u¨ã½c"},
+#ifdef USE_MULTI_LANGUAGE
 	{'l', 0, NULL, x_lang, 0, "Language switch", "¤Á´«»y¨¥ª©¥»"},
-#endif	
+#endif
 	{'g', 0, NULL, Goodbye, 0, "Goodbye", "¦A¨£¡A§ÚªºªB¤Í"},
 	{'a', PERM_SYSOP, &(AdminMenu[0]), NULL, ADMIN, "Admin Menu", "ºÞ²zªÌ¿ì¤½«Ç"},
 	{'0', 0, NULL, NULL, MMENU, "Main Menu", "¥D¿ï³æ"},
@@ -199,7 +158,6 @@ int menu_depth = 1;
 static int n_cmenus = 0;
 struct commands *cmenus = MainMenu;
 short redraw;
-
 
 #ifdef USE_MENUSHOW
 int pict_no = 0;
@@ -222,7 +180,7 @@ static void menu_title()
 			unsigned char chs;
 			static long randomseed = 1;
 
-			/*  
+			/*
 			 * This is a simple linear congruential random number
 			 * generator.  Hence, it is a bad random number
 			 * generator, but good enough for most randomized
@@ -236,11 +194,13 @@ static void menu_title()
  * if (j < 13)
  * j = 13;
  */
+			move(10, 0);
+			outs(ANSI_COLOR(1;32) "(TAB) ®i¶}¥þ¤å" ANSI_RESET);
 			move(10, 69 - strlen(msshm->list[pict_no].owner));
-			prints("¡m´£¨Ñ¡n%s ", msshm->list[pict_no].owner);
+			prints("¡i´£¨Ñ¡j%s ", msshm->list[pict_no].owner);
 			j = 2;
 			move(j, 0);
-/*                      
+/*
  * prints("[7m¡m§@ªÌ¡n%35.35s  ¡m¼ÐÃD¡n%27.27s[m",
  * msshm->list[pict_no].owner, msshm->list[pict_no].title);
  */
@@ -256,7 +216,7 @@ static void menu_title()
 				else
 					break;
 			}
-			/* 
+			/*
 			 * Direct output the content in shared memory,
 			 * for better performance. by lthuang
 			 */
@@ -264,12 +224,12 @@ static void menu_title()
 			p1 = msshm->list[pict_no].body;
 			while (j-- > 0 && (chs = *p1++) != '\0')
 				outc(chs);
-			outs("[m");
+			outs(ANSI_RESET);
 
 			redraw = FALSE;
 		}
-/*              
- * move(b_line, 0); 
+/*
+ * move(b_line, 0);
  */
 	}
 #endif /* USE_MENUSHOW */
@@ -282,8 +242,9 @@ static void menu_btitle()
 }
 
 
-static void menu_entry(int x, struct commands ent[], int idx, int top, int last, int rows)
+static void menu_entry(int x, void *ep, int idx, int top, int last, int rows)
 {
+	struct commands *ent = (struct commands *)ep;
 	int i, num;
 
 	for (num = top; num <= last; num++)
@@ -303,6 +264,22 @@ static void menu_entry(int x, struct commands ent[], int idx, int top, int last,
 	}
 }
 
+static int is_sysop_host(const char *from)
+{
+	char *p = SYSOP_HOSTS, *ep;
+
+	if (!strcmp(SYSOP_HOSTS, "ALL"))
+		return 1;
+
+	while ((ep = strchr(p, ',')) != NULL) {
+		if (!strncmp(from, p, ep - p))
+			return 1;
+		p = ep + 1;
+	}
+	if (strlen(p))
+		return !strncmp(from, p, strlen(p));
+	return 0;
+}
 
 static int menu_max(char *direct, int size)
 {
@@ -316,25 +293,17 @@ static int menu_max(char *direct, int size)
 #endif
 		if (curuser.userlevel < cmenus[i].level)
 			continue;
-#ifdef NSYSUBBS
 		if (cmenus[i].level == PERM_SYSOP)
 		{
+#ifdef NSYSUBBS
 			extern BOOL IsRealSysop;
 
 			if (!IsRealSysop)
 				continue;
-			if (strncmp(uinfo.from, "140.117.12.", 11)
-#if defined(NSYSUBBS2)
-			    && strncmp(uinfo.from, "140.117.11.14", 13)
 #endif
-			    && strncmp(uinfo.from, "127.0.0.1", 9)
-			    && strncmp(uinfo.from, "140.117.11.1", 12)
-			    && strncmp(uinfo.from, "140.117.18.61", 13))
-			{
+			if (!is_sysop_host(uinfo.from))
 				continue;
-			}
 		}
-#endif
 		if (j != i)
 			memcpy(&(cmenus[j]), &(cmenus[i]), sizeof(struct commands));
 		j++;
@@ -372,12 +341,16 @@ static int menu_get(char *direct, void *s, int size, int top)
 }
 
 
-static int menu_findkey(char *nbuf, struct commands ent[], register int start, register int total)
+static int menu_findkey(char *nbuf, void *ep, register int start, register int total)
 {
 	/* by Keeper:
 	   start and total are not in the list,
 	   so I guess they are register int.
-	   Maybe they are int? */
+	   Maybe they are int?
+	   By CD:
+	   It doesn't matter actually. :p
+	   */
+	struct commands *ent = (struct commands *)ep;
 	register int i;
 
 	for (i = start; i < total; i++)
@@ -405,7 +378,7 @@ static int mcmd_menushow(int ent, struct commands *cent, char *direct)
 {
 	if (!(curuser.flags[0] & PICTURE_FLAG))
 	{
-		more(msshm->list[pict_no].filename, TRUE);
+		pmore(msshm->list[pict_no].filename, TRUE);
 		redraw = TRUE;
 		return C_FULL;
 	}
@@ -422,6 +395,7 @@ static int mcmd_enter(int ent, struct commands *cent, char *direct)
 		return C_REDO;
 	}
 	update_umode(cent->mode);
+	redraw = TRUE;
 	return (*(cent->cfunc)) ();
 }
 
@@ -452,7 +426,7 @@ void domenu()
 		if (cursor_menu(11, 13, NULL, menu_comms, sizeof(struct commands),
 				&(m_ccur[menu_depth - 1]),
 				menu_title, menu_btitle, menu_entry, menu_get, menu_max,
-				menu_findkey, 0, TRUE, SCREEN_SIZE-4) == 0)
+				menu_findkey, 0, TRUE) == 0)
 		{
 			if (menu_depth == 1)
 			{

@@ -5,15 +5,14 @@
 # This Makefile for "@systype@"
 #
 # The home directory for the user 'bbs'
-HOMEBBS   = @prefix@
+HOMEBBS   = @HOMEBBS@
 
 DEFINES   = @OS_DEF@ $(SITE_DEF) @DEFS@
 CC        = @CC@
 MAKE      = @MAKE@
-CFLAGS	  = @CFLAGS@ -I.. -I../include -I../lib
+CFLAGS	  = @CFLAGS@ -I.. -I../include -I../lib -Wall
 LDLIBS	  = @LIBS@ -lncurses
 
-STRIP     = @STRIP@
 PERL      = @PERL@
 INSTALL   = @INSTALL@
 ECHO_N    = @ac_n@
@@ -55,13 +54,13 @@ SRCS      = admin.c article.c board.c chat.c chat2.c cursor.c edit.c formosa.c \
 # conditional configurations and optional modules
 #######################################################################
 
-ifdef WITH_VISIO
+ifndef WITHOUT_VISIO
 CFLAGS += -DUSE_VISIO
 SRCS += visio.c
 endif
 
 # Should with WITH_VISIO
-ifdef WITH_PFTERM
+ifndef WITHOUT_PFTERM
 CFLAGS += -DUSE_PFTERM
 SRCS += pfterm.c
 else
@@ -87,11 +86,9 @@ debug: all
 
 bbsd: $(LIBFILE) $(OBJS)
 	$(CC) -o $@ $(OBJS) $(LDLIBS) $(LIBFILE)
-	#$(STRIP) bbsd
 
 bbschatd: bbschatd.c
 	$(CC) $(CFLAGS) $(DEFINES) -o $@ $@.c  $(LDLIBS)
-	#$(STRIP) $@
 
 genlogin: genlogin.c $(LIBFILE)
 	$(CC) $(CFLAGS) $(DEFINES) -o $@ $@.c $(LDLIBS) $(LIBFILE)
@@ -99,17 +96,16 @@ genlogin: genlogin.c $(LIBFILE)
 $(LIBFILE): $(LIBSRCS)
 	cd ../lib; $(MAKE)
 
-install_once: all genlogin
+install_once: install genlogin
 	@(HOMEBBS="$(HOMEBBS)" INSTALL="$(INSTALL)" ECHO_N=$(ECHO_N) \
 		../Install.sh)
-	$(MAKE) install_once
 	@(./genlogin -c Sysop -p SYSOP -l 255 -i 7 SYSOP)
 	@(./genlogin -c Guest -p guest -l 0   -i 0 guest)
 
-install: installbbsd installbbschatd
-	
+install: all installbbsd installbbschatd
 
 install%: %
+	mkdir -p $(HOMEBBS)/bin
 	(cd $(HOMEBBS); [ ! -f ./bin/$? ] || mv -f ./bin/$? ./bin/$?.old)
 	-cp -p $? $(HOMEBBS)/bin
 

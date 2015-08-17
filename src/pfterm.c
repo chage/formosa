@@ -1,271 +1,12 @@
-//////////////////////////////////////////////////////////////////////////
-// pfterm environment settings
-//////////////////////////////////////////////////////////////////////////
-#ifdef _PFTERM_TEST_MAIN
-
-#define USE_PFTERM
-#define EXP_PFTERM
-#define DBCSAWARE
-#define FT_DBCS_NOINTRESC 1
-#define DBG_TEXT_FD
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <assert.h>
-
-#else
-
-#define HAVE_GRAYOUT
-#include <assert.h>
 #include "bbs.h"
-#include "screen.h"
-
-#ifdef  DBCS_NOINTRESC
-// # ifdef  CONVERT
-// extern int bbs_convert_type;
-// #  define FT_DBCS_NOINTRESC (
-//      (cuser.uflag & DBCS_NOINTRESC) || 
-//      (bbs_convert_type == CONV_UTF8))
-// # else
-#  define FT_DBCS_NOINTRESC (cuser.uflag & DBCS_NOINTRESC)
-// # endif
-#else
-# define FT_DBCS_NOINTRESC 0
-#endif
-
-#endif
-
-//////////////////////////////////////////////////////////////////////////
-// pfterm debug settings
-//////////////////////////////////////////////////////////////////////////
-
-// #define DBG_SHOW_DIRTY
-// #define DBG_SHOW_REPRINT     // will not work if you enable SHOW_DIRTY.
-// #define DBG_DISABLE_OPTMOVE
-// #define DBG_DISABLE_REPRINT
-
-//////////////////////////////////////////////////////////////////////////
-// pmore style ansi
-// #include "ansi.h"
-//////////////////////////////////////////////////////////////////////////
-
-#ifndef PMORE_STYLE_ANSI
-#define ESC_CHR '\x1b'
-#define ESC_STR "\x1b"
-#define ANSI_COLOR(x) ESC_STR "[" #x "m"
-#define ANSI_RESET ESC_STR "[m"
-#endif // PMORE_STYLE_ANSI
-
-#ifndef ANSI_IS_PARAM
-#define ANSI_IS_PARAM(c) (c == ';' || (c >= '0' && c <= '9'))
-#endif // ANSI_IS_PARAM
-
-//////////////////////////////////////////////////////////////////////////
-// grayout advanced control
-// #include "grayout.h"
-//////////////////////////////////////////////////////////////////////////
-#ifndef GRAYOUT_DARK
-#define GRAYOUT_COLORBOLD (-2)
-#define GRAYOUT_BOLD (-1)
-#define GRAYOUT_DARK (0)
-#define GRAYOUT_NORM (1)
-#define GRAYOUT_COLORNORM (+2)
-#endif // GRAYOUT_DARK
-
-//////////////////////////////////////////////////////////////////////////
-// Typeahead
-//////////////////////////////////////////////////////////////////////////
-#ifndef TYPEAHEAD_NONE
-#define TYPEAHEAD_NONE  (-1)
-#define TYPEAHEAD_STDIN (0)
-#endif // TYPEAHEAD
-
-//////////////////////////////////////////////////////////////////////////
-// pfterm: piaip's flat terminal system, a new replacement for 'screen'.
-// pfterm can also be read as "Perfect Term"
-//
-// piaip's new implementation of terminal system (term/screen) with dirty
-// map, designed and optimized for ANSI based output.
-//
-// "pfterm" is "piaip's flat terminal" or "perfect term", not "PTT's term"!!!
-// pfterm is designed for general maple-family BBS systems, not
-// specific to any branch.
-//
-// Author: Hung-Te Lin (piaip), Dec 2007.
-//
-// Copyright (c) 2007-2008 Hung-Te Lin <piaip@csie.ntu.edu.tw>
-// All rights reserved.
-// 
-// Distributed under a Non-Commercial 4clause-BSD alike license.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-// 1. Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-// 2. Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in the
-//    documentation and/or other materials provided with the distribution.
-// 3. All advertising materials mentioning features or use of this software
-//    must display appropriate acknowledgement, like:
-//        This product includes software developed by Hung-Te Lin (piaip).
-//    The acknowledgement can be localized with the name unchanged.
-// 4. You may not exercise any of the rights granted to you above in any
-//    manner that is primarily intended for or directed toward commercial
-//    advantage or private monetary compensation. For avoidance of doubt, 
-//    using in a program providing commercial network service is also
-//    prohibited.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-// IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-// PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-// OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// MAJOR IMPROVEMENTS:
-//  - Interpret ANSI code and maintain a virtual terminal
-//  - Dual buffer for dirty map and optimized output
-//
-// TODO AND DONE:
-//  - DBCS aware and prevent interrupting DBCS [done]
-//  - optimization with relative movement [done]
-//  - optimization with ENTER/clrtoeol [done]
-//  - ncurses-like API [done]
-//  - inansistr to output escaped string [done]
-//  - handle incomplete DBCS characters [done]
-//  - optimization with reprint ability [done]
-//  - add auto wrap control
-//
-// DEPRECATED:
-//  - standout() [rework getdata() and namecomplete()]
-//  - talk.c (big_picture) [rework talk.c]
-//
-//////////////////////////////////////////////////////////////////////////
-// Reference:
-// http://en.wikipedia.org/wiki/ANSI_escape_code
-// http://www.ecma-international.org/publications/files/ECMA-ST/Ecma-048.pdf
-//////////////////////////////////////////////////////////////////////////
-// The supported escapes are based on 'cons25' termcap and
-// Windows 2000/XP/Vista built-in telnet.
-//
-// Underline is only supported by vt100 (and monochrome) so we drop it.
-// Blink is supported by vt100/cons25 and we keep it.
-//////////////////////////////////////////////////////////////////////////
+#include "tsbbs.h"
 
 // Experimental now
 #if defined(EXP_PFTERM) || defined(USE_PFTERM)
 
-//////////////////////////////////////////////////////////////////////////
-// pfterm Configurations
-//////////////////////////////////////////////////////////////////////////
-
-// Prevent invalid DBCS characters
-#define FTCONF_PREVENT_INVALID_DBCS
-
-// Some terminals use current attribute to erase background
-#define FTCONF_CLEAR_SETATTR
-
-// Some terminals (NetTerm, PacketSite) have bug in bolding attribute.
-#define FTCONF_WORKAROUND_BOLD
-
-// Some terminals prefer VT100 style scrolling, including Win/DOS telnet
-#undef  FTCONF_USE_ANSI_SCROLL
-#undef  FTCONF_USE_VT100_SCROLL
-
-// Few poor terminals do not have relative move (ABCD).
-#undef  FTCONF_USE_ANSI_RELMOVE
-
-// Handling ANSI commands with 2 parameters (ex, ESC[m;nH)
-// 2: Good terminals can accept any omit format (ESC[;nH)
-// 1: Poor terminals (eg, Win/DOS telnet) can only omit 2nd (ESC[mH)
-// 0: Very few poor terminals (eg, CrazyTerm/BBMan) cannot omit any parameters
-#define FTCONF_ANSICMD2_OMIT (0)
-
-//////////////////////////////////////////////////////////////////////////
-// Flat Terminal Definition
-//////////////////////////////////////////////////////////////////////////
-
-#define FTSZ_DEFAULT_ROW (24)
-#define FTSZ_DEFAULT_COL (80)
-#define FTSZ_MIN_ROW     (24)
-#define FTSZ_MAX_ROW     (100)
-#define FTSZ_MIN_COL     (80)
-#define FTSZ_MAX_COL     (320)
-
-#define FTCHAR_ERASE     (' ')
-#define FTATTR_ERASE     (0x07)
-#define FTCHAR_BLANK     (' ')
-#define FTATTR_DEFAULT   (FTATTR_ERASE)
-#define FTCHAR_INVALID_DBCS ('?')
-// #define FTATTR_TRANSPARENT (0x80)
-
-#define FTDIRTY_CHAR    (0x01)
-#define FTDIRTY_ATTR    (0x02)
-#define FTDIRTY_DBCS    (0x04)
-#define FTDIRTY_INVALID_DBCS (0x08)
-#define FTDIRTY_RAWMOVE (0x10)
-
-#define FTDBCS_SAFE     (0)     // standard DBCS
-#define FTDBCS_UNSAFE   (1)     // not on all systems (better do rawmove)
-#define FTDBCS_INVALID  (2)     // invalid
-
-#define FTCMD_MAXLEN    (63)    // max escape command sequence length
-#define FTATTR_MINCMD   (16)
-
-#ifndef FTCONF_USE_ANSI_RELMOVE
-# define FTMV_COST      (8)     // always ESC[m;nH will costs avg 8 bytes
-#else
-# define FTMV_COST      (5)     // ESC[ABCD with ESC[m;nH costs avg 4+ bytes
-#endif
-
-//////////////////////////////////////////////////////////////////////////
-// Flat Terminal Data Type
-//////////////////////////////////////////////////////////////////////////
-
-typedef unsigned char ftchar;   // primitive character type
-typedef unsigned char ftattr;   // primitive attribute type
-
-//////////////////////////////////////////////////////////////////////////
-// Flat Terminal Structure
-//////////////////////////////////////////////////////////////////////////
-
-typedef struct 
-{
-    ftchar  **cmap[2];      // character map
-    ftattr  **amap[2];      // attribute map
-    ftchar  *dmap;          // dirty map
-    ftchar  *dcmap;         // processed display map
-    ftattr  attr;
-    int     rows, cols;
-    int     y, x;
-    int     sy,sx;  // stored cursor
-    int     mi;     // map index, mi = current map and (1-mi) = old map
-    int     dirty;
-    int     scroll;
-
-    // memory allocation
-    int     mrows, mcols;
-
-    // raw terminal status
-    int     ry, rx;
-    ftattr  rattr;
-
-    // typeahead
-    char    typeahead;
-
-    // escape command
-    ftchar  cmd[FTCMD_MAXLEN+1];
-    int     szcmd;
-
-} FlatTerm;
+// deprecated
+void    standout    (void) {};
+void    standend    (void) {};
 
 static FlatTerm ft;
 
@@ -278,173 +19,6 @@ static FlatTerm ft;
 #endif
 
 //////////////////////////////////////////////////////////////////////////
-// Flat Terminal Utility Macro
-//////////////////////////////////////////////////////////////////////////
-
-// ftattr: 0| FG(3) | BOLD(1) | BG(3) | BLINK(1) |8
-#define FTATTR_FGSHIFT  (0)
-#define FTATTR_BGSHIFT  (4)
-#define FTATTR_GETFG(x) ((x >> FTATTR_FGSHIFT) & 0x7)
-#define FTATTR_GETBG(x) ((x >> FTATTR_BGSHIFT) & 0x7)
-#define FTATTR_FGMASK   ((ftattr)(0x7 << FTATTR_FGSHIFT))
-#define FTATTR_BGMASK   ((ftattr)(0x7 << FTATTR_BGSHIFT))
-#define FTATTR_BOLD     (0x08)
-#define FTATTR_BLINK    (0x80)
-#define FTATTR_DEFAULT_FG   (FTATTR_GETFG(FTATTR_DEFAULT))
-#define FTATTR_DEFAULT_BG   (FTATTR_GETBG(FTATTR_DEFAULT))
-#define FTATTR_MAKE(f,b)    (((f)<<FTATTR_FGSHIFT)|((b)<<FTATTR_BGSHIFT))
-#define FTCHAR_ISBLANK(x)   ((x) == (FTCHAR_BLANK))
-
-#define FTCMAP  ft.cmap[ft.mi]
-#define FTAMAP  ft.amap[ft.mi]
-#define FTCROW  FTCMAP[ft.y]
-#define FTAROW  FTAMAP[ft.y]
-#define FTC     FTCROW[ft.x]
-#define FTA     FTAROW[ft.x]
-#define FTD     ft.dmap
-#define FTDC    ft.dcmap
-#define FTPC    (FTCROW+ft.x)
-#define FTPA    (FTAROW+ft.x)
-#define FTOCMAP ft.cmap[1-ft.mi]
-#define FTOAMAP ft.amap[1-ft.mi]
-
-
-// for fast checking, we use reduced range here.
-// Big5: LEAD = 0x81-0xFE, TAIL = 0x40-0x7E/0xA1-0xFE
-#define FTDBCS_ISLEAD(x) (((unsigned char)(x))>=(0x80))
-#define FTDBCS_ISTAIL(x) (((unsigned char)(x))>=(0x40))
-
-//  - 0xFF is used as telnet IAC, don't use it!
-//  - 0x80 is invalid for Big5.
-#define FTDBCS_ISBADLEAD(x) ((((unsigned char)(x)) == 0x80) || (((unsigned char)(x)) == 0xFF))
-
-// even faster:
-// #define FTDBCS_ISLEAD(x) (((unsigned char)(x)) & 0x80)
-// #define FTDBCS_ISTAIL(x) (((unsigned char)(x)) & ((unsigned char)~0x3F))
-
-#define FTDBCS_ISSBCSPRINT(x) \
-    (((unsigned char)(x))>=' ' && ((unsigned char)(x))<0x80)
-
-#ifndef min
-#define min(x,y) (((x)<(y))?(x):(y))
-#endif
-
-#ifndef max
-#define max(x,y) (((x)>(y))?(x):(y))
-#endif
-
-#ifndef abs
-#define abs(x) (((x)>0)?(x):-(x))
-#endif
-
-#define ranged(x,vmin,vmax) (max(min(x,vmax),vmin))
-
-
-//////////////////////////////////////////////////////////////////////////
-// Flat Terminal API
-//////////////////////////////////////////////////////////////////////////
-
-//// common ncurse-like library interface
-
-// initialization
-void    initscr     (void);
-int     resizeterm  (int rows, int cols);
-int     endwin      (void);
-
-// attributes
-ftattr  attrget     (void);
-void    attrset     (ftattr attr);
-void    attrsetfg   (ftattr attr);
-void    attrsetbg   (ftattr attr);
-
-// cursor
-void    getyx       (int *y, int *x);
-void    getmaxyx    (int *y, int *x);
-void    move        (int y, int x);
-
-// clear
-void    clear       (void); // clrscr + move(0,0)
-void    clrtoeol    (void); // end of line
-void    clrtobot    (void);
-// clear (non-ncurses)
-void    clrtoln     (int ln); // clear down to ln ( excluding ln, as [y,ln) )
-void    clrcurln    (void); // whole line
-void    clrtobeg    (void); // begin of line
-void    clrtohome   (void);
-void    clrscr      (void); // clear and keep cursor untouched
-void    clrregion   (int r1, int r2); // clear [r1,r2], bi-directional.
-
-// window control
-void    newwin      (int nlines, int ncols, int y, int x);
-
-// flushing
-void    refresh     (void); // optimized refresh
-void    doupdate    (void); // optimized refresh, ignore input queue
-void    redrawwin   (void); // invalidate whole screen
-int     typeahead   (int fd);// prevent refresh if input queue is not empty
-
-// scrolling
-void    scroll      (void);     // scroll up
-void    rscroll     (void);     // scroll down
-void    scrl        (int rows);
-
-// output (ncurses flavor)
-void    addch       (unsigned char c);  // equivalent to outc()
-void    addstr      (const char *s);    // equivalent to outs()
-void    addnstr     (const char *s, int n);
-
-// output (non-ncurses)
-void    outc        (unsigned char c);
-void    outs        (const char *s);
-void    outns       (const char *s, int n);
-void    outstr      (const char *str);  // prepare and print a complete string.
-void    addstring   (const char *str);  // ncurses-like of outstr().
-
-// readback
-int     instr       (char *str);
-int     innstr      (char *str, int n); // n includes \0
-int     inansistr   (char *str, int n); // n includes \0
-
-// deprecated
-void    standout    (void) {};
-void    standend    (void) {};
-
-// grayout advanced control
-void    grayout     (int y, int end, int level);
-
-//// flat-term internal processor
-
-int     fterm_inbuf     (void);         // raw input  adapter
-void    fterm_rawc      (int c);        // raw output adapter
-void    fterm_rawnewline(void);         // raw output adapter
-void    fterm_rawflush  (void);         // raw output adapter
-void    fterm_raws      (const char *s);
-void    fterm_rawnc     (int c, int n);
-void    fterm_rawnum    (int arg);
-void    fterm_rawcmd    (int arg, int defval, char c);
-void    fterm_rawcmd2   (int arg1, int arg2, int defval, char c);
-void    fterm_rawattr   (ftattr attr);  // optimized changing attribute
-void    fterm_rawclear  (void);
-void    fterm_rawclreol (void);
-void    fterm_rawhome   (void);
-void    fterm_rawscroll (int dy);
-void    fterm_rawcursor (void);
-void    fterm_rawmove   (int y, int x);
-void    fterm_rawmove_opt(int y, int x);
-void    fterm_rawmove_rel(int dy, int dx);
-
-int     fterm_chattr    (char *s, ftattr oa, ftattr na); // size(s) > FTATTR_MINCMD 
-void    fterm_exec      (void);             // execute ft.cmd
-void    fterm_flippage  (void);
-void    fterm_dupe2bk   (void);
-void    fterm_markdirty (void);             // mark as dirty
-int     fterm_strdlen   (const char *s);    // length of string for display
-int     fterm_prepare_str(int len);
-
-// DBCS supporting
-int     fterm_DBCS_Big5(unsigned char c1, unsigned char c2);
-
-//////////////////////////////////////////////////////////////////////////
 // Flat Terminal Implementation
 //////////////////////////////////////////////////////////////////////////
 
@@ -452,7 +26,7 @@ int     fterm_DBCS_Big5(unsigned char c1, unsigned char c2);
 
 // initialization
 
-void 
+void
 initscr(void)
 {
 #ifdef _WIN32
@@ -477,13 +51,13 @@ initscr(void)
     move(0, 0);
 }
 
-int 
+int
 endwin(void)
 {
     int r, mi = 0;
 
     // fterm_rawclear();
-    
+
     for (mi = 0; mi < 2; mi++)
     {
         for (r = 0; r < ft.mrows; r++)
@@ -498,14 +72,14 @@ endwin(void)
     return 0;
 }
 
-int 
+int
 resizeterm(int rows, int cols)
 {
     int dirty = 0, mi = 0, i = 0;
 
     rows = ranged(rows, FTSZ_MIN_ROW, FTSZ_MAX_ROW);
     cols = ranged(cols, FTSZ_MIN_COL, FTSZ_MAX_COL);
-    
+
     // adjust memory only for increasing buffer
     if (rows > ft.mrows || cols > ft.mcols)
     {
@@ -514,9 +88,9 @@ resizeterm(int rows, int cols)
             // allocate rows
             if (rows > ft.mrows)
             {
-                ft.cmap[mi] = (ftchar**)realloc(ft.cmap[mi], 
+                ft.cmap[mi] = (ftchar**)realloc(ft.cmap[mi],
                         sizeof(ftchar*) * rows);
-                ft.amap[mi] = (ftattr**)realloc(ft.amap[mi], 
+                ft.amap[mi] = (ftattr**)realloc(ft.amap[mi],
                         sizeof(ftattr*) * rows);
 
                 // allocate new columns
@@ -535,9 +109,9 @@ resizeterm(int rows, int cols)
             {
                 for (i = 0; i < ft.mrows; i++)
                 {
-                    ft.cmap[mi][i] = (ftchar*)realloc(ft.cmap[mi][i], 
+                    ft.cmap[mi][i] = (ftchar*)realloc(ft.cmap[mi][i],
                             (cols+1) * sizeof(ftchar));
-                    ft.amap[mi][i] = (ftattr*)realloc(ft.amap[mi][i], 
+                    ft.amap[mi][i] = (ftattr*)realloc(ft.amap[mi][i],
                             (cols+1) * sizeof(ftattr));
                     // zero at end to prevent over-run
                     ft.cmap[mi][i][cols] = 0;
@@ -545,7 +119,7 @@ resizeterm(int rows, int cols)
                 }
             } else {
                 // we have to deal one case:
-                // expand x, shrink x, expand y -> 
+                // expand x, shrink x, expand y ->
                 //   now new allocated lines will have small x(col) instead of mcol.
                 // the solution is to modify mcols here, or change the malloc above
                 // to max(ft.mcols, cols).
@@ -573,18 +147,18 @@ resizeterm(int rows, int cols)
     // because we will redawwin(), so need to change front buffer only.
     for (i = ft.rows; i < rows; i++)
     {
-        memset(FTCMAP[i], FTCHAR_ERASE, 
+        memset(FTCMAP[i], FTCHAR_ERASE,
                 (cols) * sizeof(ftchar));
-        memset(FTAMAP[i], FTATTR_ERASE, 
+        memset(FTAMAP[i], FTATTR_ERASE,
                 (cols) * sizeof(ftattr));
     }
     if (cols > ft.cols)
     {
         for (i = 0; i < ft.rows; i++)
         {
-            memset(FTCMAP[i]+ft.cols, FTCHAR_ERASE, 
+            memset(FTCMAP[i]+ft.cols, FTCHAR_ERASE,
                     (cols-ft.cols) * sizeof(ftchar));
-            memset(FTAMAP[i]+ft.cols, FTATTR_ERASE, 
+            memset(FTAMAP[i]+ft.cols, FTATTR_ERASE,
                     (cols-ft.cols) * sizeof(ftattr));
         }
     }
@@ -604,7 +178,7 @@ resizeterm(int rows, int cols)
 
 // attributes
 
-ftattr 
+ftattr
 attrget(void)
 {
     return ft.attr;
@@ -632,7 +206,7 @@ attrsetbg(ftattr attr)
 
 // clear
 
-void 
+void
 clrscr(void)
 {
     int r;
@@ -643,14 +217,14 @@ clrscr(void)
     fterm_markdirty();
 }
 
-void 
+void
 clear(void)
 {
     clrscr();
     move(0,0);
 }
 
-void 
+void
 clrtoeol(void)
 {
     ft.x = ranged(ft.x, 0, ft.cols-1);
@@ -660,7 +234,7 @@ clrtoeol(void)
     fterm_markdirty();
 }
 
-void 
+void
 clrtobeg(void)
 {
     ft.x = ranged(ft.x, 0, ft.cols-1);
@@ -670,7 +244,7 @@ clrtobeg(void)
     fterm_markdirty();
 }
 
-void 
+void
 clrcurrline(void)
 {
     ft.y = ranged(ft.y, 0, ft.rows-1);
@@ -709,14 +283,14 @@ clrregion(int r1, int r2)
     fterm_markdirty();
 }
 
-void 
+void
 clrtobot(void)
 {
     clrtoeol();
     clrregion(ft.y+1, ft.rows-1);
 }
 
-void 
+void
 clrtohome(void)
 {
     clrtobeg();
@@ -727,7 +301,7 @@ void newwin (int nlines, int ncols, int y, int x)
 {
     int oy, ox;
     // check range
-    
+
     x = ranged(x, 0, ft.cols-1);
     y = ranged(y, 0, ft.rows-1);
     ncols  = ranged(x+ncols-1,  x, ft.cols-1);
@@ -769,7 +343,7 @@ redrawwin(void)
     fterm_markdirty();
 }
 
-int 
+int
 typeahead(int fd)
 {
     switch(fd)
@@ -857,20 +431,20 @@ doupdate(void)
                 FTD[x] |= FTDIRTY_ATTR, ds++;
 
             // determine DBCS status
-            if (dbcs == 1)  
-            { 
+            if (dbcs == 1)
+            {
 #ifdef FTCONF_PREVENT_INVALID_DBCS
                 switch(fterm_DBCS_Big5(FTCMAP[y][x-1], FTCMAP[y][x]))
                 {
                     case FTDBCS_SAFE:
                         // safe to print
-                        FTD[x-1] &= ~FTDIRTY_INVALID_DBCS; 
+                        FTD[x-1] &= ~FTDIRTY_INVALID_DBCS;
                         FTDC[x-1] = FTCMAP[y][x-1];
                         break;
 
                     case FTDBCS_UNSAFE:
                         // ok to print, but need to rawmove.
-                        FTD[x-1] &= ~FTDIRTY_INVALID_DBCS; 
+                        FTD[x-1] &= ~FTDIRTY_INVALID_DBCS;
                         FTDC[x-1] = FTCMAP[y][x-1];
                         FTD[x-1] |= FTDIRTY_CHAR;
                         FTD[x]   |= FTDIRTY_RAWMOVE;
@@ -880,52 +454,52 @@ doupdate(void)
                         // only SBCS safe characters can be print.
                         if (!FTDBCS_ISSBCSPRINT(FTCMAP[y][x]))
                         {
-                            FTD[x] |= FTDIRTY_INVALID_DBCS; 
+                            FTD[x] |= FTDIRTY_INVALID_DBCS;
                             FTDC[x] = FTCHAR_INVALID_DBCS;
                         }
                         break;
                 }
 #endif // FTCONF_PREVENT_INVALID_DBCS
 
-                dbcs  = 2; 
+                dbcs  = 2;
                 // TAIL: dirty prev and me if any is dirty.
-                if (FTD[x] || FTD[x-1]) 
+                if (FTD[x] || FTD[x-1])
                 {
-                    FTD[x]  |= FTDIRTY_DBCS; 
-                    FTD[x-1]|= FTDIRTY_CHAR; 
+                    FTD[x]  |= FTDIRTY_DBCS;
+                    FTD[x-1]|= FTDIRTY_CHAR;
                 }
             }
             else if (FTDBCS_ISLEAD(FTCMAP[y][x]))
-            { 
+            {
                 // LEAD: clear dirty when tail was found.
-                dbcs  = 1; 
+                dbcs  = 1;
 #ifdef FTCONF_PREVENT_INVALID_DBCS
-                FTD[x] |= FTDIRTY_INVALID_DBCS; 
+                FTD[x] |= FTDIRTY_INVALID_DBCS;
                 FTDC[x] = FTCHAR_INVALID_DBCS;
 #endif // FTCONF_PREVENT_INVALID_DBCS
             }
             else
             {
                 // NON-DBCS
-                dbcs  = 0; 
+                dbcs  = 0;
             }
 
-            if (odbcs == 1) 
+            if (odbcs == 1)
             {
                 // TAIL: dirty prev and me if any is dirty.
-                odbcs  = 2; 
-                if (FTD[x] || FTD[x-1]) 
+                odbcs  = 2;
+                if (FTD[x] || FTD[x-1])
                 {
-                    FTD[x]  |= FTDIRTY_CHAR; 
-                    FTD[x-1]|= FTDIRTY_CHAR; 
+                    FTD[x]  |= FTDIRTY_CHAR;
+                    FTD[x-1]|= FTDIRTY_CHAR;
                 }
             }
-            else if (FTDBCS_ISLEAD(FTOCMAP[y][x])) 
+            else if (FTDBCS_ISLEAD(FTOCMAP[y][x]))
             {
                 // LEAD: dirty next?
-                odbcs  = 1; 
+                odbcs  = 1;
             }
-            else    
+            else
             {
                 odbcs = 0;
             }
@@ -964,7 +538,7 @@ doupdate(void)
                 // Inside a refresh() loop, this will never happen.
                 // However it may occur for the first print entering refresh.
                 // So enable only space if this is the first run (!touched).
-                
+
                 // if we don't need to change attributes,
                 // just print remaining characters
                 for (i = ft.rx; i < x; i++)
@@ -984,7 +558,7 @@ doupdate(void)
 
                 // safe to print all!
                 // printf("[re-print %d chars]", i-ft.rx);
-                
+
 #ifdef DBG_SHOW_REPRINT
                 // reverse to hint this is a re-print
                 fterm_rawattr(FTATTR_MAKE(0, 7) | FTATTR_BOLD);
@@ -1012,7 +586,7 @@ doupdate(void)
             else
 #endif // DBCSAWARE
 #ifdef DBG_SHOW_DIRTY
-            fterm_rawattr(FTD[x] ? 
+            fterm_rawattr(FTD[x] ?
                 (FTAMAP[y][x] | FTATTR_BOLD) : (FTAMAP[y][x] & ~FTATTR_BOLD));
 #else // !DBG_SHOW_DIRTY
             fterm_rawattr(FTAMAP[y][x]);
@@ -1072,7 +646,7 @@ move(int y, int x)
 
 // scrolling
 
-void 
+void
 scrl(int rows)
 {
     if (!rows)
@@ -1111,7 +685,7 @@ scroll()
     FTAMAP[y] = a0;
     FTOCMAP[y]= oc0;
     FTOAMAP[y]= oa0;
-    
+
     // XXX also clear backup buffer
     // must carefully consider if up then down scrolling.
     fterm_flippage();
@@ -1123,14 +697,14 @@ scroll()
     // fterm_markdirty(); // should be already dirty
 }
 
-void 
+void
 rscroll()
 {
     // scroll down
     int y;
     ftchar *c0 = FTCMAP[ft.rows -1], *oc0 = FTOCMAP[ft.rows -1];
     ftattr *a0 = FTAMAP[ft.rows -1], *oa0 = FTOAMAP[ft.rows -1];
-    
+
     // prevent mixing buffered scroll up+down
     if (ft.scroll > 0)
         fterm_rawscroll(ft.scroll);
@@ -1147,7 +721,7 @@ rscroll()
     FTAMAP[y] = a0;
     FTOCMAP[y]= oc0;
     FTOAMAP[y]= oa0;
-    
+
     // XXX also clear backup buffer
     // must carefully consider if up then down scrolling.
     fterm_flippage();
@@ -1161,19 +735,19 @@ rscroll()
 
 // output
 
-void    
+void
 addch (unsigned char c)
 {
     outc(c);
 }
 
-void    
+void
 addstr (const char *s)
 {
     outs(s);
 }
 
-void 
+void
 addnstr(const char *s, int n)
 {
     outns(s, n);
@@ -1185,7 +759,7 @@ addstring(const char *s)
     outstr(s);
 }
 
-void    
+void
 outs(const char *s)
 {
     if (!s)
@@ -1194,7 +768,7 @@ outs(const char *s)
         outc(*s++);
 }
 
-void    
+void
 outns(const char *s, int n)
 {
     if (!s)
@@ -1214,7 +788,7 @@ outstr(const char *str)
 
     // calculate real length of str (stripping escapes)
     // TODO only print by the returned size
-    
+
     fterm_prepare_str(fterm_strdlen(str));
 
     outs(str);
@@ -1238,10 +812,10 @@ outstr(const char *str)
 #endif
 }
 
-void
-outc(unsigned char c)
+static void
+outc_orig(unsigned char c)
 {
-    // 0xFF is invalid for most cases (even DBCS), 
+    // 0xFF is invalid for most cases (even DBCS),
     if (c == 0xFF || c == 0x00)
         return;
 
@@ -1264,7 +838,7 @@ outc(unsigned char c)
         // start of escaped commands
         ft.cmd[ft.szcmd++] = c;
     }
-    else if (c == '\t') 
+    else if (c == '\t')
     {
         // tab: move by 8, and erase the moved range
         int x = ft.x;
@@ -1280,7 +854,7 @@ outc(unsigned char c)
             memset(FTAROW+ft.x, ft.attr, x-ft.x);
         }
         ft.x = x;
-    } 
+    }
     else if (c == '\b')
     {
         ft.x = ranged(ft.x-1, 0, ft.cols-1);
@@ -1299,8 +873,8 @@ outc(unsigned char c)
             // scroll();
             ft.y --;
         }
-    } 
-    else if (iscntrl((unsigned char)c)) 
+    }
+    else if (iscntrl((unsigned char)c))
     {
         // unknown control characters: ignore
     }
@@ -1332,8 +906,43 @@ outc(unsigned char c)
     }
 }
 
+/*
+ * 因為screen(http://www.gnu.org/software/screen/)的Big5->UTF-8
+ * 轉碼有問題, 碰到Big5的"<<" ">>"這兩種全形字, 就會錯位畫面亂掉
+ * 所以就把這兩種全形字轉成用 '<''<' 以及 '>''>' 取代
+ */
+extern BOOL fix_screen;
+void outc(unsigned char c)
+{
+    static int possible_wrong = 0;
+
+    if (fix_screen) {
+        if (!possible_wrong && c == 0xA1u) {
+            possible_wrong = 1;
+            return;
+        }
+        if (possible_wrong) {
+            possible_wrong = 0;
+            if (c == 0x6Du) {
+                outc_orig('<');
+                outc_orig('<');
+                return;
+            }
+            if (c == 0x6Eu) {
+                outc_orig('>');
+                outc_orig('>');
+                return;
+            }
+            outc_orig(0xA1u);
+        }
+        outc_orig(c);
+    } else {
+        outc_orig(c);
+    }
+}
+
 // readback
-int     
+int
 instr       (char *str)
 {
     int x = ft.cols -1;
@@ -1351,7 +960,7 @@ instr       (char *str)
     return x;
 }
 
-int     
+int
 innstr      (char *str, int n)
 {
     int on = n;
@@ -1372,7 +981,7 @@ innstr      (char *str, int n)
     return n;
 }
 
-int 
+int
 inansistr   (char *str, int n)
 {
     int x = ft.cols -1, i = 0, szTrail = 0;
@@ -1407,7 +1016,7 @@ inansistr   (char *str, int n)
 
             if (a != FTATTR_DEFAULT)
                 szTrail = 3; // ESC [ m
-            else 
+            else
                 szTrail = 0;
 
             if (strlen(cmd) >= n-szTrail)
@@ -1419,7 +1028,7 @@ inansistr   (char *str, int n)
         }
 
         // n should > szTrail
-        *str ++ = FTCROW[i]; 
+        *str ++ = FTCROW[i];
         n--;
     }
 
@@ -1434,7 +1043,7 @@ inansistr   (char *str, int n)
 
 // internal core of piaip's flat-term
 
-void    
+void
 fterm_flippage (void)
 {
     // we have only 2 pages now.
@@ -1442,7 +1051,7 @@ fterm_flippage (void)
 }
 
 #ifndef fterm_markdirty
-void 
+void
 fterm_markdirty (void)
 {
     ft.dirty = 1;
@@ -1452,7 +1061,7 @@ fterm_markdirty (void)
 void fterm_dupe2bk(void)
 {
     int r = 0;
-    
+
     for (r = 0; r < ft.rows; r++)
     {
         memcpy(FTOCMAP[r], FTCMAP[r], ft.cols * sizeof(ftchar));
@@ -1476,7 +1085,7 @@ fterm_DBCS_Big5(unsigned char c1, unsigned char c2)
     return FTDBCS_SAFE;
 }
 
-int 
+int
 fterm_prepare_str(int len)
 {
     // clear and make (cursor, +len) as DBCS-ready.
@@ -1485,7 +1094,7 @@ fterm_prepare_str(int len)
     int dbcs = 0, sdbcs = 0;
 
     // TODO what if x+len is outside range?
-    
+
     // check if (x,y) is in valid range
     if (x != ft.x || y != ft.y)
         return -1;
@@ -1506,7 +1115,7 @@ fterm_prepare_str(int len)
 
     x = ft.x;
     // fix start and end
-    if(sdbcs == 2 && x > 0) // TAIL, remove word 
+    if(sdbcs == 2 && x > 0) // TAIL, remove word
         x--;
     if (dbcs == 1 && len < ft.cols) // LEAD, remove word
         len ++;
@@ -1520,7 +1129,7 @@ fterm_prepare_str(int len)
 }
 
 
-void    
+void
 fterm_exec(void)
 {
     ftchar cmd = ft.cmd[ft.szcmd-1];
@@ -1549,7 +1158,7 @@ fterm_exec(void)
     case 'B':   // CUD: CSI n B
     case 'C':   // CUF: CSI n C
     case 'D':   // CUB: CSI n D
-        // Moves the cursor n (default 1) cells in the given direction. 
+        // Moves the cursor n (default 1) cells in the given direction.
         // If the cursor is already at the edge of the screen, this has no effect.
         if (n < 1)
             n = 1;
@@ -1563,7 +1172,7 @@ fterm_exec(void)
 
     case 'E':   // CNL: CSI n E
     case 'F':   // CPL: CSI n F
-        // Moves cursor to beginning of the line 
+        // Moves cursor to beginning of the line
         // n (default 1) lines up/down (next/previous line).
         if (n < 1)
             n = 1;
@@ -1583,9 +1192,9 @@ fterm_exec(void)
 
     case 'H':   // CUP: CSI n ; m H
     case 'f':   // HVP: CSI n ; m f
-        // Moves the cursor to row n, column m. 
-        // The values are 1-based, and default to 1 (top left corner) if omitted. 
-        // A sequence such as CSI ;5H is a synonym for CSI 1;5H as well as 
+        // Moves the cursor to row n, column m.
+        // The values are 1-based, and default to 1 (top left corner) if omitted.
+        // A sequence such as CSI ;5H is a synonym for CSI 1;5H as well as
         // CSI 17;H is the same as CSI 17H and CSI 17;1H
         y = n;
         if (y >= 0 && isdigit(*p))
@@ -1598,9 +1207,9 @@ fterm_exec(void)
         // Clear
 
     case 'J':   // ED: CSI n J
-        //  Clears part of the screen. 
-        // If n is zero (or missing), clear from cursor to end of screen. 
-        // If n is one, clear from cursor to beginning of the screen. 
+        //  Clears part of the screen.
+        // If n is zero (or missing), clear from cursor to end of screen.
+        // If n is one, clear from cursor to beginning of the screen.
         // If n is two, clear entire screen
         if (n == 0 || n < 0)
             clrtobot();
@@ -1613,9 +1222,9 @@ fterm_exec(void)
         break;
 
     case 'K':   // EL: CSI n K
-        // Erases part of the line. 
-        // If n is zero (or missing), clear from cursor to the end of the line. 
-        // If n is one, clear from cursor to beginning of the line. 
+        // Erases part of the line.
+        // If n is zero (or missing), clear from cursor to the end of the line.
+        // If n is one, clear from cursor to beginning of the line.
         // If n is two, clear entire line. Cursor position does not change.
         if (n == 0 || n < 0)
             clrtoeol();
@@ -1636,7 +1245,7 @@ fterm_exec(void)
         break;
 
     case 'S':   // SU: CSI n S
-        // Scroll whole page up by n (default 1) lines. 
+        // Scroll whole page up by n (default 1) lines.
         // New lines are added at the bottom.
         if (n < 1)
             n = 1;
@@ -1644,7 +1253,7 @@ fterm_exec(void)
         break;
 
     case 'T':   // SD: CSI n T
-        // Scroll whole page down by n (default 1) lines. 
+        // Scroll whole page down by n (default 1) lines.
         // New lines are added at the top.
         if (n < 1)
             n = 1;
@@ -1652,9 +1261,9 @@ fterm_exec(void)
         break;
 
     case 'm':   // SGR: CSI n [;k] m
-        // Sets SGR (Select Graphic Rendition) parameters. 
-        // After CSI can be zero or more parameters separated with ;. 
-        // With no parameters, CSI m is treated as CSI 0 m (reset / normal), 
+        // Sets SGR (Select Graphic Rendition) parameters.
+        // After CSI can be zero or more parameters separated with ;.
+        // With no parameters, CSI m is treated as CSI 0 m (reset / normal),
         // which is typical of most of the ANSI codes.
         // ---------------------------------------------------------
         // SGR implementation:
@@ -1685,12 +1294,12 @@ fterm_exec(void)
             {
                 // set foreground
                 attrsetfg(n - 30);
-            }  
+            }
             else if (n >= 40 && n <= 47)
             {
                 // set background
                 attrsetbg(n - 40);
-            } 
+            }
             else switch(n)
             {
             case 0:
@@ -1731,7 +1340,7 @@ fterm_exec(void)
             {
                 n = 0;
                 p++;
-            } 
+            }
             else if (isdigit(*p))
             {
                 n = atoi(p);
@@ -1747,10 +1356,10 @@ fterm_exec(void)
     }
 }
 
-int 
+int
 fterm_chattr(char *s, ftattr oattr, ftattr nattr)
 {
-    ftattr 
+    ftattr
         fg, bg, bold, blink,
         ofg, obg, obold, oblink;
     char lead = 1;
@@ -1768,17 +1377,17 @@ fterm_chattr(char *s, ftattr oattr, ftattr nattr)
         *s++ = 0;
         return 1;
     }
-    
+
     fg = FTATTR_GETFG(nattr);
     bg = FTATTR_GETBG(nattr);
     bold =  (nattr & FTATTR_BOLD) ? 1 : 0;
     blink = (nattr & FTATTR_BLINK)? 1 : 0;
-    
+
     ofg = FTATTR_GETFG(oattr);
     obg = FTATTR_GETBG(oattr);
     obold =  (oattr & FTATTR_BOLD) ? 1 : 0;
     oblink = (oattr & FTATTR_BLINK)? 1 : 0;
-    
+
     // we dont use "disable blink/bold" commands,
     // so if these settings are changed then we must reset.
     // another case is changing background to default background -
@@ -1798,7 +1407,7 @@ fterm_chattr(char *s, ftattr oattr, ftattr nattr)
         obg = FTATTR_DEFAULT_BG;
         obold = 0; oblink = 0;
     }
-    
+
     if (bold && !obold)
     {
         if (lead) lead = 0; else *s++ = ';';
@@ -1836,7 +1445,7 @@ fterm_chattr(char *s, ftattr oattr, ftattr nattr)
     return 1;
 }
 
-int 
+int
 fterm_strdlen(const char *s)
 {
     char ansi = 0;
@@ -1872,14 +1481,14 @@ fterm_strdlen(const char *s)
                         sz++;
                     break;
             }
-        } 
-        else if (ansi == 1) 
+        }
+        else if (ansi == 1)
         {
             if (*s == '[')
                 ansi++;
             else
                 ansi = 0;
-        } 
+        }
         else if (!ANSI_IS_PARAM(*s)) // ansi == 2
         {
             // TODO outc() take max to FTCMD_MAXLEN now...
@@ -1890,7 +1499,7 @@ fterm_strdlen(const char *s)
     return sz;
 }
 
-void    
+void
 fterm_rawattr(ftattr rattr)
 {
     static char cmd[FTATTR_MINCMD*2];
@@ -1901,7 +1510,7 @@ fterm_rawattr(ftattr rattr)
     ft.rattr = rattr;
 }
 
-void 
+void
 fterm_rawnum(int arg)
 {
     if (arg < 0 || arg > 99)
@@ -1918,7 +1527,7 @@ fterm_rawnum(int arg)
         fterm_rawc('0' + arg%10);
     }
 }
-void 
+void
 fterm_rawcmd(int arg, int defval, char c)
 {
     fterm_rawc(ESC_CHR);
@@ -1928,7 +1537,7 @@ fterm_rawcmd(int arg, int defval, char c)
     fterm_rawc(c);
 }
 
-void 
+void
 fterm_rawcmd2(int arg1, int arg2, int defval, char c)
 {
     fterm_rawc(ESC_CHR);
@@ -1955,7 +1564,7 @@ fterm_rawcmd2(int arg1, int arg2, int defval, char c)
     fterm_rawc(c);
 }
 
-void    
+void
 fterm_rawclear(void)
 {
     fterm_rawhome();
@@ -1963,7 +1572,7 @@ fterm_rawclear(void)
     fterm_raws(ESC_STR "[2J");
 }
 
-void    
+void
 fterm_rawclreol(void)
 {
 #ifdef FTCONF_CLEAR_SETATTR
@@ -1972,7 +1581,7 @@ fterm_rawclreol(void)
     // may get wrong attributes. Or not? (consider DBCS...)
     // if (FTATTR_GETBG(oattr) != FTATTR_GETBG(FTATTR_ERASE))
     fterm_rawattr(FTATTR_ERASE);
-#endif 
+#endif
 
     // EL: CSI n K, n = 0
     fterm_raws(ESC_STR "[K");
@@ -1983,12 +1592,12 @@ fterm_rawclreol(void)
 #endif
 }
 
-void 
+void
 fterm_rawhome(void)
 {
     // CUP: CSI n ; m H
     fterm_raws(ESC_STR "[H");
-    ft.rx = ft.ry = 0; 
+    ft.rx = ft.ry = 0;
 }
 
 void
@@ -2009,7 +1618,7 @@ fterm_rawmove_rel(int dy, int dx)
 
         fterm_rawcmd(abs(dy), 1, dy < 0 ? 'A' : 'B');
         ft.ry = y;
-    } 
+    }
     else if (!dy)
     {
         int x = ranged(dx + ft.rx, 0, ft.cols-1);
@@ -2019,8 +1628,8 @@ fterm_rawmove_rel(int dy, int dx)
 
         fterm_rawcmd(abs(dx), 1, dx < 0 ? 'D' : 'C');
         ft.rx = x;
-    } 
-    else 
+    }
+    else
     {
         // (dy, dx) are given - use fterm_move.
         fterm_rawmove(ft.ry + dy, ft.rx + dx);
@@ -2028,7 +1637,7 @@ fterm_rawmove_rel(int dy, int dx)
 #endif
 }
 
-void 
+void
 fterm_rawmove(int y, int x)
 {
     y = ranged(y, 0, ft.rows-1);
@@ -2044,7 +1653,7 @@ fterm_rawmove(int y, int x)
     ft.rx = x;
 }
 
-void 
+void
 fterm_rawmove_opt(int y, int x)
 {
     // optimized move
@@ -2060,12 +1669,12 @@ fterm_rawmove_opt(int y, int x)
     // known hacks: \r = (x=0), \b=(x--), \n = (y++)
     //
     // Warning: any optimization here should not change displayed content,
-    // because we don't have information about content variation information 
+    // because we don't have information about content variation information
     // (eg, invalid DBCS bytes will become special marks) here.
     // Any hacks which will try to display data from FTCMAP should be done
     // inside dirty-map calculation, for ex, using spaces to move right,
     // or re-print content.
-    
+
 #ifndef DBG_TEXT_FD
     // x=0: the cheapest output. However not work for text mode fd output.
     // a special case is "if we have to move y to up".
@@ -2095,15 +1704,15 @@ fterm_rawmove_opt(int y, int x)
         while (ft.ry++ < y)
             fterm_rawc('\n');
         ft.ry = y;
-    } 
+    }
     else if (ady && adx)
     {
         fterm_rawmove(y, x);
-    } 
+    }
     else if (ady)
     {
         fterm_rawmove_rel(y-ft.ry, 0);
-    } 
+    }
     else if (adx)
     {
         fterm_rawmove_rel(0, x-ft.rx);
@@ -2126,7 +1735,7 @@ fterm_rawcursor(void)
 #endif // !_WIN32
 }
 
-void    
+void
 fterm_rawscroll (int dy)
 {
 #ifdef FTCONF_USE_ANSI_SCROLL
@@ -2141,13 +1750,13 @@ fterm_rawscroll (int dy)
     fterm_rawcmd(ady, 1, cmd);
     ft.scroll -= dy;
 
-#else 
+#else
     // VT100 flavor:
     //  *  ESC D: scroll down
     //  *  ESC M: scroll up
     //
     // Elder BBS systems works in a mixed way:
-    // \n at (rows-1) as scroll() 
+    // \n at (rows-1) as scroll()
     // and ESC-M at(0) as rscoll().
     //
     // SCP: CSI s / RCP: CSI u
@@ -2156,7 +1765,7 @@ fterm_rawscroll (int dy)
     //
     // Since scroll does not happen very often, let's relax and not
     // optimize these commands here...
-    
+
     int ady = abs(dy);
     if (ady == 0)
         return;
@@ -2177,7 +1786,7 @@ fterm_rawscroll (int dy)
             // because of the IME line.
 #ifdef FTCONF_USE_VT100_SCROLL
             fterm_raws(ESC_STR "D" ESC_STR "[K"); // ESC_STR "[K");
-#else 
+#else
             fterm_raws("\n" ESC_STR "[K");
 #endif
         } else {
@@ -2192,14 +1801,14 @@ fterm_rawscroll (int dy)
 #endif
 }
 
-void    
+void
 fterm_raws(const char *s)
 {
     while (*s)
         fterm_rawc(*s++);
 }
 
-void    
+void
 fterm_rawnc(int c, int n)
 {
     while (n-- > 0)
@@ -2209,7 +1818,7 @@ fterm_rawnc(int c, int n)
 //////////////////////////////////////////////////////////////////////////
 // grayout advanced control
 //////////////////////////////////////////////////////////////////////////
-void    
+void
 grayout(int y, int end, int level)
 {
     char grattr = FTATTR_DEFAULT;
@@ -2247,12 +1856,12 @@ grayout(int y, int end, int level)
     {
         grattr = FTATTR_MAKE(0,0);
         grattr |= FTATTR_BOLD;
-    } 
+    }
     else if (level == GRAYOUT_NORM)
     {
         // normal text
-    } 
-    else 
+    }
+    else
     {
         // not supported yet
     }
@@ -2269,7 +1878,7 @@ grayout(int y, int end, int level)
 
 #ifndef _PFTERM_TEST_MAIN
 
-void 
+void
 scr_dump(screen_backup_t *psb)
 {
     int y = 0;
@@ -2279,7 +1888,7 @@ scr_dump(screen_backup_t *psb)
     psb->col= ft.cols;
     psb->y   = ft.y;
     psb->x   = ft.x;
-    p = psb->raw_memory = 
+    p = psb->raw_memory =
         malloc (ft.rows * ft.cols * (sizeof(ftchar) + sizeof(ftattr)));
 
     for (y = 0; y < ft.rows; y++)
@@ -2291,7 +1900,7 @@ scr_dump(screen_backup_t *psb)
     }
 }
 
-void 
+void
 scr_restore(const screen_backup_t *psb)
 {
     int y = 0;
@@ -2337,8 +1946,8 @@ void
 region_scroll_up(int top, int bottom)
 {
     int i;
-    ftchar *c0; 
-    ftattr *a0; 
+    ftchar *c0;
+    ftattr *a0;
 
     // logic same with old screen.c
     if (top > bottom) {
@@ -2370,7 +1979,7 @@ region_scroll_up(int top, int bottom)
 // adapter
 //////////////////////////////////////////////////////////////////////////
 
-int 
+int
 fterm_inbuf(void)
 {
 #ifdef _PFTERM_TEST_MAIN
@@ -2380,11 +1989,11 @@ fterm_inbuf(void)
 #endif
 }
 
-void    
+void
 fterm_rawc(int c)
 {
 #ifdef _PFTERM_TEST_MAIN
-    // if (c == ESC_CHR) putchar('*'); else 
+    // if (c == ESC_CHR) putchar('*'); else
     putchar(c);
 #else
     ochar(c);
@@ -2446,8 +2055,8 @@ int main(int argc, char* argv[])
         refresh();
         getchar();
 
-        outs(ANSI_COLOR(1;33) "test " ANSI_COLOR(34) "x" 
-                ANSI_RESET "te" ANSI_COLOR(43;0;1;35) " st" 
+        outs(ANSI_COLOR(1;33) "test " ANSI_COLOR(34) "x"
+                ANSI_RESET "te" ANSI_COLOR(43;0;1;35) " st"
                 ANSI_COLOR(0) "testx\n");
         refresh();
         getchar();

@@ -1,10 +1,6 @@
-
+#include "bbs.h"
 #ifndef _BBS_GLOBALS_H_
 #define _BBS_GLOBALS_H_
-
-
-#include "bbs.h"
-
 
 extern USEREC curuser;
 extern USER_INFO uinfo;
@@ -17,13 +13,14 @@ extern struct BoardList *curbe;	/* NULL */
 extern BOARDHEADER *CurBList;	/* NULL */
 
 /* Used for exception condition like I/O error */
-extern jmp_buf byebye;				
+extern jmp_buf byebye;
 
 /* generally used global buffer */
-extern char genbuf[1024];			
+extern char genbuf[1024];
 
 extern BOOL in_board;	/* TRUE */
 extern BOOL in_mail;	/* FALSE */
+extern BOOL in_note;	/* FALSE */
 extern BOOL talkrequest;	/* FALSE */
 extern BOOL msqrequest;	/* FALSE */
 

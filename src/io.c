@@ -130,7 +130,7 @@ igetagain:
 		{
 			if (ibufsize < 0 && errno == EINTR)
 				continue;
-			exit(0);				
+			exit(0);
 		}
 		icurrchar = 0;
 	}
@@ -146,13 +146,13 @@ igetagain:
 		icurrchar++;
 		goto igetagain;
 	}
-/*	
+/*
 	else if (inbuf[icurrchar] == 0x0d)
 	{
 		icurrchar++;
 		return '\n';
 	}
-*/	
+*/
 	return inbuf[icurrchar++];
 #else
       igetagain:
@@ -161,7 +161,7 @@ igetagain:
 		int sr;
 		struct pollfd pd[2];
 		char npd;
-		
+
 #if 1	/* !! TEST !! */
 		if (dumb_term)
 			oflush();
@@ -299,7 +299,7 @@ igetagain:
 		}
 	}
 	return inbuf[icurrchar++];
-#endif	/* !_BBS_UTIL_ */	
+#endif	/* !_BBS_UTIL_ */
 }
 
 
@@ -360,8 +360,7 @@ void bell()
 	fprintf(stderr, "%c", CTRL('G'));
 }
 
-void
-drop_input(void)
+void drop_input(void)
 {
     icurrchar = ibufsize = 0;
 }
@@ -371,7 +370,7 @@ drop_input(void)
  * Move to next line before getdata
  *
  */
-int getdataln(char *prompt, char *buf, int len, int echo)
+int getdataln(const char *prompt, char *buf, int len, int echo)
 {
 	int  line, col;
 
@@ -379,23 +378,23 @@ int getdataln(char *prompt, char *buf, int len, int echo)
 	return _getdata(line + 1, col, prompt, buf, len, echo, NULL);
 }
 
-int getdata(int line, int col, char *prompt, char *buf, int len, int echo)
+int getdata(int line, int col, const char *prompt, char *buf, int len, int echo)
 {
 	return _getdata(line, col, prompt, buf, len, echo, NULL);
 }
 
-int getdata_buf(int line, int col, char *prompt, char *buf, int len, int echo)
+int getdata_buf(int line, int col, const char *prompt, char *buf, int len, int echo)
 {
 	return _getdata(line, col, prompt, buf, len, echo, NULL);
 }
 
 /* With default value */
-int getdata_str(int line, int col, char *prompt, char *buf, int len, int echo, char *prefix)
+int getdata_str(int line, int col, const char *prompt, char *buf, int len, int echo, char *prefix)
 {
 	return _getdata(line, col, prompt, buf, len, echo, prefix);
 }
 
-int _getdata(int line, int col, char *prompt, char *buf, int len, int echo, char *prefix)
+int _getdata(int line, int col, const char *prompt, char *buf, int len, int echo, char *prefix)
 {
 	unsigned char ch;
 	int clen = 0;
@@ -423,7 +422,7 @@ int _getdata(int line, int col, char *prompt, char *buf, int len, int echo, char
 		}
 		else
 			ch = igetch();
-#ifndef _BBS_UTIL_			
+#ifndef _BBS_UTIL_
 #if 1
 		if (dumb_term && !init_enter)
 		{
@@ -467,7 +466,7 @@ int _getdata(int line, int col, char *prompt, char *buf, int len, int echo, char
 				ch = igetch();
 				if (ch >= '1' && ch <= '6')
 					igetch();
-			}					
+			}
 			continue;
 		}
 #endif
@@ -515,8 +514,8 @@ int _getdata(int line, int col, char *prompt, char *buf, int len, int echo, char
 		buf[clen++] = (echo & XLCASE) ? tolower(ch) : ch;
 		outc((echo & XECHO) ? ch : '*');
 #ifdef _BBS_UTIL_
-		refresh();		
-#endif		
+		refresh();
+#endif
 		x++;
 	}
 	buf[clen] = '\0';
@@ -529,46 +528,56 @@ int _getdata(int line, int col, char *prompt, char *buf, int len, int echo, char
 static int
 getdata2vgetflag(int echo)
 {
+    char newecho = VGET_DEFAULT;
     assert(echo != GCARRY);
 
-    if (echo == LCECHO)
-        echo = VGET_LOWERCASE;
-    else if (echo == NUMECHO)
-        echo = VGET_DIGITS;
-    else if (echo == NOECHO)
-        echo = VGET_PASSWORD;
-    else if (echo == XNOSP || echo == ECHONOSP)
-    	echo = VGET_NO_SPACE;
-    else
-        echo = VGET_DEFAULT;
+    if (echo == NOECHO) {
+        newecho = VGET_NOECHO;
+    } else {
+	if (echo & LCECHO)
+	    newecho |= VGET_LOWERCASE;
+	if (echo & NUMECHO)
+	    newecho |= VGET_DIGITS;
+	if ((echo & XNOSP) || (echo & ECHONOSP))
+	    newecho |= VGET_NO_SPACE;
+    }
 
-    return echo;
+    return newecho;
+}
+
+
+static int max_len(int col, const char *prompt, int buflen)
+{
+    unsigned int plen = (prompt) ? strlen(prompt) : 0;
+    if ((col + plen + buflen) > t_columns)
+	return t_columns - col - plen;
+    return buflen;
 }
 
 /* Ptt */
 int
-getdata_buf(int line, int col, char *prompt, char *buf, int len, int echo)
+getdata_buf(int line, int col, const char *prompt, char *buf, int len, int echo)
 {
     move(line, col);
     if(prompt && *prompt) outs(prompt);
-    return vgetstr(buf, len, getdata2vgetflag(echo), buf);
+    return vgetstr(buf, max_len(col, prompt, len), getdata2vgetflag(echo), buf);
 }
 
 
 int
-getdata_str(int line, int col, char *prompt, char *buf, int len, int echo, char *defaultstr)
+getdata_str(int line, int col, const char *prompt, char *buf, int len, int echo, char *defaultstr)
 {
     move(line, col);
     if(prompt && *prompt) outs(prompt);
-    return vgetstr(buf, len, getdata2vgetflag(echo), defaultstr);
+    return vgetstr(buf, max_len(col, prompt, len), getdata2vgetflag(echo), defaultstr);
 }
 
 int
-getdata(int line, int col, char *prompt, char *buf, int len, int echo)
+getdata(int line, int col, const char *prompt, char *buf, int len, int echo)
 {
     move(line, col);
     if(prompt && *prompt) outs(prompt);
-    return vgets(buf, len, getdata2vgetflag(echo));
+    return vgets(buf, max_len(col, prompt, len), getdata2vgetflag(echo));
 }
 #endif // ifdef USE_VISIO
 

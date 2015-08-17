@@ -1,9 +1,4 @@
-
 #include "bbs.h"
-
-/* pp: readid, qq: readbit */
-extern void mymod(unsigned int id, int maxu, int *pp, unsigned char *qq);
-
 
 unsigned int rrc_changed = FALSE;
 struct readrc rrc_buf, myrrc;
@@ -13,8 +8,7 @@ char fname_readrc[PATHLEN];
 char currentuserid[IDLEN] = "\0";
 
 #define RRC_SIZE    sizeof(struct readrc)
-#define RRC_EXPTIME (14*86400)
-
+#define RRC_EXPTIME (90*86400)
 
 void ReadRC_Update()
 {
@@ -22,7 +16,6 @@ void ReadRC_Update()
 	char fn_new[PATHLEN];
 	short fail = FALSE;
 	int fdr, fdw;
-
 
 	if (currentuserid[0] == '\0')
 		return;
@@ -46,17 +39,17 @@ void ReadRC_Update()
 
 	if ((fdr = open(fname_readrc, O_RDONLY)) > 0)
 	{
-		time_t now;		
+		time_t now;
 
-		
 		time(&now);
-		while (read(fdr, &rrc_buf, RRC_SIZE) == RRC_SIZE)
+		while (myread(fdr, &rrc_buf, RRC_SIZE) == RRC_SIZE)
 		{
 			if (!found)
 			{
 				if (rrc_buf.bid == myrrc.bid)
 				{
 					found = TRUE;
+					myrrc.mtime = time(NULL);
 					if (write(fdw, &myrrc, RRC_SIZE) != RRC_SIZE)
 					{
 						fail = TRUE;
@@ -98,7 +91,6 @@ void ReadRC_Update()
 	if (fail)
 		unlink(fn_new);
 }
-
 
 void ReadRC_Expire()
 {
@@ -146,8 +138,7 @@ void ReadRC_Expire()
 	}
 }
 
-
-void ReadRC_Init(unsigned int bid, char *userid)
+void ReadRC_Init(unsigned int bid, const char *userid)
 {
 	int fd;
 
@@ -159,7 +150,7 @@ void ReadRC_Init(unsigned int bid, char *userid)
 	strncpy(currentuserid, userid, IDLEN - 1);
 	currentuserid[IDLEN - 1] = '\0';
 
-	new_visit = FALSE;		/* lasehu */
+	new_visit = FALSE;
 
 	ReadRC_Update();
 
@@ -172,7 +163,7 @@ void ReadRC_Init(unsigned int bid, char *userid)
 			{
 				memcpy(&myrrc, &rrc_buf, RRC_SIZE);
 				close(fd);
-				new_visit = TRUE;
+				new_visit = FALSE;
 				return;
 			}
 		}
@@ -180,17 +171,16 @@ void ReadRC_Init(unsigned int bid, char *userid)
 	}
 	memset(&myrrc, 0, RRC_SIZE);
 	myrrc.bid = bid;
-	myrrc.mtime = time(0);
+	myrrc.mtime = time(NULL);
 
-	new_visit = TRUE;	/* lasehu */
+	new_visit = TRUE;
 }
 
 
-unsigned char rrc_readbit;
-int rrc_readid;
-
 void ReadRC_Addlist(int artno)
 {
+	unsigned char rrc_readbit;
+	int rrc_readid;
 
 #ifdef DEBUG
 	prints("\nReadRC_Addlist()");
@@ -206,6 +196,7 @@ void ReadRC_Addlist(int artno)
 #endif
 	myrrc.rlist[rrc_readid] |= rrc_readbit;
 	rrc_changed = TRUE;
+	new_visit = FALSE;
 #ifdef DEBUG
 	if (myrrc.rlist[rrc_readid] & rrc_readbit)
 		prints("\nok!!");
@@ -214,176 +205,138 @@ void ReadRC_Addlist(int artno)
 #endif
 }
 
-int ReadRC_UnRead(int artno)
+int ReadRC_UnRead(const FILEHEADER *fh)
 {
-#ifdef DEBUG
-	if (artno <= 0 || artno > BRC_REALMAXNUM)
-		return 1;
-#endif
-	mymod(artno, BRC_MAXNUM, &rrc_readid, &rrc_readbit);
-#ifdef DEBUG
-	prints("\nrlist[%d] = [%2x], mem[%2x]", rrc_readid, rrc_readbit, myrrc.rlist[rrc_readid]);
-	getkey();
-#endif
-	return (myrrc.rlist[rrc_readid] & rrc_readbit) ? 0 : 1;
+	unsigned char rrc_readbit;
+	int rrc_readid;
+	time_t t;
+	int rtval = UNREAD_MOD;
+
+	t = fh->mtime;
+	if (!t) {
+		t = strtol(fh->filename + 2, NULL, 10);
+		rtval = UNREAD_NEW;
+	}
+
+	if (time(NULL) - t > RRC_EXPTIME)
+		return UNREAD_READED;
+
+	/*
+	 * Shouldn't happen
+	 */
+	if (fh->postno <= 0 || fh->postno > BRC_REALMAXNUM)
+		return UNREAD_READED;
+
+	mymod(fh->postno, BRC_MAXNUM, &rrc_readid, &rrc_readbit);
+
+	return (myrrc.rlist[rrc_readid] & rrc_readbit) ? UNREAD_READED : rtval;
 }
 
-
-#define DIRECTION_INC	1
-#define DIRECTION_DEC	0
-
-
+enum direction_enum {
+	DIRECTION_DEC,
+	DIRECTION_INC
+};
 static void ReadRC_Mod(unsigned int no, int max, int *rbyte, unsigned char *rbit, int direction)
 {
-	unsigned char onebit = 0x1;
-	int shift;
-
-	shift = (no - 1) % 8;
-	onebit = onebit << shift;
-	*rbit = onebit;
-	if (direction == DIRECTION_INC)
-		shift = 7 - shift;
-	while (shift--)
-	{
-		if (direction == DIRECTION_INC)
-			onebit = onebit << 1;
-		else if (direction == DIRECTION_DEC)
-			onebit = onebit >> 1;
-		*rbit |= onebit;
+	mymod(no, BRC_MAXNUM, rbyte, rbit);
+	*rbit = *rbit - 1;
+	if (direction == DIRECTION_DEC) {
+		*rbit = ~(*rbit);
+		*rbit <<= 1;
 	}
-	*rbit &= ~(*rbit);
-	*rbyte = ((no - 1) / 8) % max;
 #ifdef DEBUG
 	prints("\nno = [%d], rbyte = [%d], rbit = [%02X]", no, *rbyte, *rbit);
 	getkey();
 #endif
 }
 
-
 static void ReadRC_Clean(int startno, int endno)
 {
 	int size;
 	int startbyte, endbyte;
 	unsigned char startbit, endbit;
-	unsigned char oribit;
 
 #ifdef DEBUG
 	prints("\nclean no[%d] ~ no[%d]", startno, endno);
 #endif
 	ReadRC_Mod(startno, BRC_MAXNUM, &startbyte, &startbit, DIRECTION_INC);
-	ReadRC_Mod(endno, BRC_MAXNUM, &endbyte, &endbit, DIRECTION_DEC);
-	size = endbyte - startbyte;
+	ReadRC_Mod(endno,   BRC_MAXNUM, &endbyte,   &endbit,   DIRECTION_DEC);
 #ifdef DEBUG
 	prints("\nstart [%d][%x] ~ end [%d][%x]",
 	       startbyte, startbit, endbyte, endbit);
 	getkey();
 #endif
-	if (size >= 1)
-	{
-		memcpy(&oribit, myrrc.rlist + startbyte, 1);
-		oribit &= (~startbit);
-		startbit |= oribit;
-		memset(myrrc.rlist + startbyte, startbit, 1);
-
-		if (size >= 2)
-			memset(myrrc.rlist + startbyte + 1, 0, size - 1);
-
-		memcpy(&oribit, myrrc.rlist + endbyte, 1);
-		oribit &= (~endbit);
-		endbit |= oribit;
-		memset(myrrc.rlist + endbyte, endbit, 1);
-
-		myrrc.mtime = time(0);
-		if (!new_visit)
-			rrc_changed = TRUE;
+	if (startbyte != endbyte) {
+		myrrc.rlist[startbyte] &= startbit;
+		myrrc.rlist[endbyte]   &= endbit;
+	} else {
+		myrrc.rlist[startbyte] &= (startbit | endbit);
 	}
-}
 
+	size = endbyte - startbyte;
+	if (size > 1)
+		memset(myrrc.rlist + startbyte + 1, 0, size - 1);
+	rrc_changed = 1;
+}
 
 void ReadRC_Refresh(char *boardname)
 {
-	time_t new_rtime;
-	int lastno, firstno;
-	int total;
+	int lastno, clean_len;
 	char fname[STRLEN];
-	FILEHEADER gfhbuf;
-	BOARDHEADER gbhbuf;
+	INFOHEADER info;
 
-	if (get_board(&gbhbuf, boardname) <= 0)
+	if (new_visit)
 		return;
-	
-	new_rtime = gbhbuf.rewind_time;
-#ifdef DEBUG
-	prints("\nmtime = [%d], new_rtime = [%d]", myrrc.mtime, new_rtime);
-	getkey();
-#endif
-	if (new_rtime < 0)
-		new_rtime = 0;
-	if (myrrc.mtime < new_rtime)
-	{
-#ifdef DEBUG
-		prints("\nreset rlist first [%d] bytes", BRC_MAXNUM / 2);
-		getkey();
-#endif
-		ReadRC_Clean(1, BRC_REALMAXNUM / 2);
-		myrrc.mtime = new_rtime;
-		rrc_changed = 1;
-	}
-	
+
 	setboardfile(fname, boardname, DIR_REC);
-	total = get_num_records(fname, FH_SIZE);
-	if (get_record(fname, &gfhbuf, FH_SIZE, 1) == 0)
-		firstno = gfhbuf.postno;
-	else
-		firstno = 1;
-
-	if (get_record(fname, &gfhbuf, FH_SIZE, total) == 0)
-		lastno = gfhbuf.postno;
-	else
-		lastno = firstno;
-#ifdef DEBUG
-	prints("\nfirstno = [%d], lastno = [%d]", firstno, lastno);
-	getkey();
-#endif
-
-	if (firstno >= 1 && firstno <= BRC_REALMAXNUM
-	    && lastno >= 1 && lastno <= BRC_REALMAXNUM)
-	{
-		if (firstno > lastno)
-		{
-			ReadRC_Clean(lastno + 1, firstno - 1);
-		}
-		else
-		{
-/*		
-			if (firstno > 1)
-				ReadRC_Clean(1, firstno - 1);
-*/				
-			if (lastno < BRC_REALMAXNUM)
-				ReadRC_Clean(lastno + 1, BRC_REALMAXNUM);
-		}
+	if (get_last_info(fname, 0, &info, FALSE) == -1) {
+		/*
+		 * Don't refresh if failed to get last postno
+		 */
+		bbslog("ERROR", "Getting INFO_REC.");
+		fprintf(stderr, "ERROR: Getting INFO_REC.");
+		return;
 	}
-#ifdef DEBUG
-	prints("\nafter ReadRC_Refresh()");
-	getkey();
-#endif
+
+	lastno = info.last_postno;
+	clean_len = (BRC_REALMAXNUM / 3);
+	if (lastno + clean_len <= BRC_REALMAXNUM) {
+		ReadRC_Clean(lastno + 1, lastno + clean_len);
+	} else {
+		ReadRC_Clean(lastno + 1, BRC_REALMAXNUM);
+		ReadRC_Clean(1, clean_len + lastno - BRC_REALMAXNUM);
+	}
 }
 
-
-void ReadRC_Visit(unsigned int bid, char *userid, int bitset)
+int ReadRC_Visit(unsigned int bid, char *userid, int bitset)
 {
+	if (new_visit)
+		return -1;
+
 	ReadRC_Init(bid, userid);
 	if (bitset)
-	{
-		myrrc.mtime = time(0);	
 		memset(myrrc.rlist, 0xFF, BRC_MAXNUM);
-	}
 	else
-	{
-		myrrc.mtime = 0;
 		memset(myrrc.rlist, 0x00, BRC_MAXNUM);
-	}
-	
-	if (!new_visit)
-		rrc_changed = TRUE;
+	rrc_changed = TRUE;
+
+	return 0;
+}
+
+int ReadRC_Board(const char *bname, int bid, const char *userid)
+{
+	char filepath[PATHLEN];
+	INFOHEADER lastinfo;
+	FILEHEADER fh_buf;
+
+	setboardfile(filepath, bname, DIR_REC);
+	if (get_last_info(filepath, 0, &lastinfo, FALSE) == -1)
+		return 0;
+
+	fh_buf.postno = lastinfo.last_postno;
+	fh_buf.mtime  = lastinfo.last_mtime;
+	strcpy(fh_buf.filename, lastinfo.last_filename);
+
+	ReadRC_Init(bid, userid);
+	return ReadRC_UnRead(&fh_buf);
 }

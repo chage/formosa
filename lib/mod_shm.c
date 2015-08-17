@@ -17,12 +17,14 @@
 #include <time.h>
 
 #include "bbsconfig.h"
+#include "bbs_ipc.h"
 #include "struct.h"
 #include "libproto.h"
 
 void attach_err(int key, char *name)
 {
 	fprintf(stderr, "[%s error] key = %X\n", name, key);
+	bbslog("ERROR", "[%s error] key = %X\n", name, key);
 	fflush(stderr);
 	exit(1);
 }
@@ -64,8 +66,6 @@ struct UTMPSHM {	/* Shared Memory, for unix-like utmp */
 
 
 static struct UTMPSHM *utmpshm = NULL;	/* pointer to user_info shared memory */
-
-#define UTMPSHM_KEY	0x1129	/* shared memory key, should be unique */
 
 int utmp_semid = 0;
 
@@ -147,14 +147,14 @@ void num_ulist(int *total, int *csbbs, int *webbbs)
 void purge_ulist(USER_INFO *upent)
 {
 	sem_lock(utmp_semid, SEM_ENTR);
-	
+
 	resolve_utmp();
 
 	if (upent)
 		memset(upent, 0, sizeof(USER_INFO));
 
 	if (--utmpshm->number < 0)
-		utmpshm->number = 0;	
+		utmpshm->number = 0;
 
 	sem_lock(utmp_semid, SEM_EXIT);
 }
@@ -172,7 +172,7 @@ USER_INFO *new_utmp()
 	USER_INFO *uentp;
 	register int i;
 
-	sem_lock(utmp_semid, SEM_ENTR); 
+	sem_lock(utmp_semid, SEM_ENTR);
 
 	resolve_utmp();
 	uentp = utmpshm->uinfo;
@@ -183,12 +183,12 @@ USER_INFO *new_utmp()
 			uentp->pid = getpid();
 			utmpshm->number++;
 			time(&utmpshm->mtime);
-			sem_lock(utmp_semid, SEM_EXIT); 
+			sem_lock(utmp_semid, SEM_EXIT);
 			return uentp;
 		}
 	}
-	
-	sem_lock(utmp_semid, SEM_EXIT); 
+
+	sem_lock(utmp_semid, SEM_EXIT);
 	exit(-1);
 }
 
@@ -201,7 +201,7 @@ void sync_ulist()
 
     resolve_utmp();
     uentp = utmpshm->uinfo;
-    sem_lock(utmp_semid, SEM_ENTR);    
+    sem_lock(utmp_semid, SEM_ENTR);
     for (i = 0; i < MAXACTIVE; i++, uentp++)
     {
 		if (uentp->pid < 2)
@@ -212,7 +212,7 @@ void sync_ulist()
 			uentp->pid = 0;
 		    continue;
 		}
-		
+
 		total++;
 		if (uentp->ctype == CTYPE_CSBBS)
 			csbbs++;
@@ -223,7 +223,7 @@ void sync_ulist()
 	utmpshm->csbbs = csbbs;
 	utmpshm->webbbs = webbbs;
     sem_lock(utmp_semid, SEM_EXIT);
-}    
+}
 
 
 struct BRDSHM {
@@ -233,7 +233,6 @@ struct BRDSHM {
 };
 
 
-#define BRDSHM_KEY	0x1329
 static struct BRDSHM *brdshm = NULL;	/* pointer to boardheader shared memory */
 
 static int cmp_brdt_bname(const void *a, const void *b)
@@ -246,10 +245,10 @@ static int cmp_brdt_bname(const void *a, const void *b)
 BOOL fast_rebuild = FALSE;
 
 static struct board_t *all_brdt[MAXBOARD];
-static int all_brdt_isset;
 int resolve_brdshm()
 {
 	int fd, i, n;
+	static time_t last_mtime = 0;
 
 	if (!brdshm)
 		brdshm = attach_shm(BRDSHM_KEY, sizeof(struct BRDSHM));
@@ -262,7 +261,7 @@ int resolve_brdshm()
 
 			n = 0;
 			memset(brdshm->brdt, 0, sizeof(brdshm->brdt));
-			while (read(fd, &bhbuf, BH_SIZE) == BH_SIZE)
+			while (myread(fd, &bhbuf, BH_SIZE) == BH_SIZE)
 			{
 				if (bhbuf.bid < 1 || bhbuf.bid > MAXBOARD)
 					continue;
@@ -273,39 +272,39 @@ int resolve_brdshm()
 				if (!fast_rebuild)
 				{
 					setboardfile(bfname, bhbuf.filename, DIR_REC);
-					brdshm->brdt[bhbuf.bid - 1].numposts = 
+					brdshm->brdt[bhbuf.bid - 1].numposts =
 						get_num_records(bfname, FH_SIZE);
 
 					setvotefile(bfname, bhbuf.filename, VOTE_REC);
 					if (stat(bfname, &st) == 0)
 						brdshm->brdt[bhbuf.bid - 1].vote_mtime = st.st_mtime;
-					
+
 					setboardfile(bfname, bhbuf.filename, BM_WELCOME);
 					if (stat(bfname, &st) == 0 && st.st_size > 0)
 						brdshm->brdt[bhbuf.bid - 1].bm_welcome = TRUE;
 				}
-					
+
 				n++;
 			}
 			brdshm->number = n;
 			time(&brdshm->mtime);
 			close(fd);
-			
+
 			qsort(all_brdt, n, sizeof(struct board_t *), cmp_brdt_bname);
 			for (n = 0; n < brdshm->number; n++)
 				(all_brdt[n])->rank = n+1;
-			all_brdt_isset = 1;
+			last_mtime = brdshm->mtime;
 		}
 	}
 
-	if (!all_brdt_isset) {
+	if (last_mtime != brdshm->mtime) {
+		int rank;
 		for (i = 0, n = 0; n < MAXBOARD; ++n) {
-			if (brdshm->brdt[n].rank != 0)
-				all_brdt[i++] = &(brdshm->brdt[n]);
+			rank = brdshm->brdt[n].rank;
+			if (rank > 0)
+				all_brdt[rank - 1] = &(brdshm->brdt[n]);
 		}
-		qsort(all_brdt, brdshm->number,
-			sizeof(struct board_t *), cmp_brdt_bname);
-		all_brdt_isset = 1;
+		last_mtime = brdshm->mtime;
 	}
 
 	return brdshm->number;
@@ -320,20 +319,19 @@ static struct board_t *search_brdt_by_bname(const char *bname)
 	keyp = &key;
 	brdtpp = bsearch(&keyp, all_brdt, brdshm->number,
 		sizeof(struct board_t *), cmp_brdt_bname);
-	
+
 	if (brdtpp)
 		return *brdtpp;
 
 	return NULL;
 }
 
-int get_board_bid(register char *farg)
+int get_board_bid(const char *bname)
 {
-	register int i;
 	struct board_t *brdtp;
 
 	resolve_brdshm();
-	brdtp = search_brdt_by_bname(farg);
+	brdtp = search_brdt_by_bname(bname);
 	if (brdtp)
 		return brdtp->bhr.bid;
 	else
@@ -341,38 +339,27 @@ int get_board_bid(register char *farg)
 }
 
 void apply_brdshm(int (*fptr)(BOARDHEADER *bhr))
-//int (*fptr)(BOARDHEADER *bhr);
 {
 	register int i;
+	int num;
 
-	resolve_brdshm();
-	for (i = 0; i < MAXBOARD; i++)
-	{
-		if (brdshm->brdt[i].bhr.filename[0])
-			(*fptr)(&(brdshm->brdt[i].bhr));
-		else
-			break;
-	}
-}	
+	num = resolve_brdshm();
+	for (i = 0; i < num; ++i)
+		(*fptr)(&(all_brdt[i]->bhr));
+}
 
 void apply_brdshm_board_t(int (*fptr)(struct board_t *binfr))
-//int (*fptr)(struct board_t *binfr);
 {
 	register int i;
+	int num;
 
-	resolve_brdshm();
-	for (i = 0; i < MAXBOARD; i++)
-	{
-		if (brdshm->brdt[i].bhr.filename[0])
-			(*fptr)(&(brdshm->brdt[i]));
-		else
-			break;
-	}
-}	
+	num = resolve_brdshm();
+	for (i = 0; i < num; ++i)
+		(*fptr)(all_brdt[i]);
+}
 
 unsigned int get_board(BOARDHEADER *bhead, char *bname)
 {
-	register int i;
 	struct board_t *brdtp;
 
 	if (!bname || bname[0] == '\0')
@@ -389,7 +376,6 @@ unsigned int get_board(BOARDHEADER *bhead, char *bname)
 
 BOOL is_new_vote(const char *bname, time_t lastlogin)
 {
-	register int i;
 	struct board_t *brdtp;
 
 	if (!bname || bname[0] == '\0')
@@ -414,7 +400,6 @@ void rebuild_brdshm(BOOL opt)
 
 void set_brdt_numposts(char *bname, BOOL reset)
 {
-	register int i;
 	struct board_t *brdtp;
 
 	if (!bname || bname[0] == '\0')
@@ -423,8 +408,8 @@ void set_brdt_numposts(char *bname, BOOL reset)
 	brdtp = search_brdt_by_bname(bname);
 	if (brdtp) {
 		if (reset) {
-			char bfname[PATHLEN];			
-			
+			char bfname[PATHLEN];
+
 			setboardfile(bfname, bname, DIR_REC);
 			brdtp->numposts = get_num_records(bfname, FH_SIZE);
 		} else {
@@ -435,7 +420,6 @@ void set_brdt_numposts(char *bname, BOOL reset)
 
 void set_brdt_vote_mtime(const char *bname)
 {
-	register int i;
 	struct board_t *brdtp;
 
 	if (!bname || bname[0] == '\0')
@@ -456,7 +440,6 @@ struct CLASSHM {
 
 static struct CLASSHM *classhm = NULL;
 
-#define CLASSHM_KEY	0x1429
 
 #if 0
 int
@@ -468,7 +451,7 @@ CLASSHEADER *n1, *n2;
 	if (!(retval = strcmp(n1->cn, n2->cn)))
 		return strcmp(n1->bn, n2-> bn);
 	return retval;
-}	
+}
 #endif
 
 
@@ -482,17 +465,17 @@ void resolve_classhm()
 		int n = 0, i, j, len;
 		int fd;
 		CLASSHEADER chbuf, *csi, *csj;
-	
+
 		if ((fd = open(CLASS_CONF, O_RDONLY)) > 0)
 		{
 			memset(classhm, 0, sizeof(struct CLASSHM));	/* lthuang */
 			time(&classhm->mtime);			/* lthuang */
 			while (read(fd, &chbuf, CH_SIZE) == CH_SIZE)
 			{
-/*			
+/*
 				if (chbuf.cid < 1 || chbuf.cid > MAXCLASS)
 					continue;
-*/					
+*/
 
 				if (chbuf.cn[0] == '-')
 				{
@@ -515,30 +498,30 @@ void resolve_classhm()
 #if 0
 			/* 分類看板目錄下依板名字母排序 */
 			qsort(classhm->clshr, n, CH_SIZE, cmp_class);
-#endif			
-			
+#endif
+
 			for (i = 0; i < n; i++)
 			{
 				csi = &(classhm->clshr[i]);
-				if (csi->cn[0] == '+')				
+				if (csi->cn[0] == '+')
 				{
 					len = strlen(csi->cn+1);
 					for (j = i+1; j < n; j++)
 					{
 						csj = &(classhm->clshr[j]);
-						if (!strncmp(csj->cn+1, csi->cn+1, len) 
+						if (!strncmp(csj->cn+1, csi->cn+1, len)
 						    && strlen(csj->cn+1) == len + 1)
 						{
 							csi->child = csj->cid;
 							break;
 						}
 					}
-				}				
+				}
 
 				len = strlen(csi->cn+1);
 				for (j = i+1; j < n; j++)
 				{
-					csj = &(classhm->clshr[j]);				
+					csj = &(classhm->clshr[j]);
 					if (!strncmp(csj->cn+1, csi->cn+1, len-1)
 					    && strlen(csj->cn+1) == len)
 					{
@@ -547,13 +530,14 @@ void resolve_classhm()
 					}
 				}
 			}
-		}		
+		}
 	}
-}	
+}
 
 
 CLASSHEADER *search_class_by_cid(unsigned int cid)
 {
+	resolve_classhm();
 	if (cid < 1 || cid > classhm->number)
 		return (CLASSHEADER *)NULL;
 	return &(classhm->clshr[cid - 1]);
@@ -573,7 +557,7 @@ void rebuild_classhm()
 void dump_classhm()
 {
 	int i;
-	
+
 	if (!classhm)
 		classhm = attach_shm(CLASSHM_KEY, sizeof(struct CLASSHM));
 
@@ -581,25 +565,25 @@ void dump_classhm()
 	printf("number: %ld\n", classhm->number);
 	for (i = 0; i < classhm->number; i++)
 	{
-		printf("%03d: %03d %03d %s %s\n", 
-			classhm->clshr[i].cid, 
-			classhm->clshr[i].child, 
+		printf("%03d: %03d %03d %s %s\n",
+			classhm->clshr[i].cid,
+			classhm->clshr[i].child,
 			classhm->clshr[i].sibling,
 			classhm->clshr[i].cn,
 			classhm->clshr[i].bn
 			);
 	}
-	
+
 	if (!brdshm)
 		brdshm = attach_shm(BRDSHM_KEY, sizeof(struct BRDSHM));
-	
+
 	printf("mtime: %ld\n", brdshm->mtime);
 	printf("number: %d\n", brdshm->number);
 	for (i = 1; i <= brdshm->number; i++)
 	{
-	
-			printf("%03d: %s\n", 
+
+			printf("%03d: %s\n",
 				i, 	brdshm->brdt[i].bhr.filename);
 	}
-}	
+}
 #endif

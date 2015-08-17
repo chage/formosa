@@ -1,11 +1,8 @@
-
-
 #include "bbs.h"
 #include "tsbbs.h"
 #include <sys/stat.h>
 
-
-#define WRAPMARGIN ((80-1)*2)
+#define WRAPMARGIN (256)
 
 struct textline
 {
@@ -16,7 +13,6 @@ struct textline
 };
 
 BOOL ansi_mode = FALSE;
-
 
 struct textline *firstline = NULL;
 struct textline *lastline = NULL;
@@ -31,12 +27,10 @@ int curr_window_line;		/* the number of lines in the window */
 BOOL redraw_everything;
 int total_num_of_line = 0;
 
-
 static void indigestion(int i)
 {
 	fprintf(stderr, "SERIOUS INTERNAL INDIGESTION CLASS %d\n", i);
 }
-
 
 static struct textline *back_line(register struct textline *pos, register int num)
 {
@@ -50,7 +44,6 @@ static struct textline *back_line(register struct textline *pos, register int nu
 	return pos;
 }
 
-
 static struct textline *forward_line(register struct textline *pos, register int num)
 {
 	while (num-- > 0)
@@ -63,9 +56,8 @@ static struct textline *forward_line(register struct textline *pos, register int
 	return pos;
 }
 
-
-/* 
- * get the number of this line in the current window 
+/*
+ * get the number of this line in the current window
  */
 static int getlineno()
 {
@@ -83,14 +75,12 @@ static int getlineno()
 	return cnt;
 }
 
-
 static char *killsp(char *s)
 {
 	while (*s == ' ')
 		s++;
 	return s;
 }
-
 
 static struct textline *alloc_line()
 {
@@ -126,9 +116,8 @@ static struct textline *alloc_line()
 	return p;
 }
 
-
 /*
- * Appends p after line in list.  keeps up with last line as well.
+ * Appends p after line in list. Keeps up with last line as well.
  */
 static void append(register struct textline *p, register struct textline *line)
 {
@@ -140,7 +129,6 @@ static void append(register struct textline *p, register struct textline *line)
 	line->next = p;
 	p->prev = line;
 }
-
 
 /*
  * delete_line deletes 'line' from the list and maintains the lastline, and
@@ -165,7 +153,6 @@ static void delete_line(register struct textline *line)
 	total_num_of_line--;
 	free(line);
 }
-
 
 /*
  * split splits 'line' right before the character pos
@@ -192,12 +179,11 @@ static void split(register struct textline *line, register int pos)
 	redraw_everything = TRUE;
 }
 
-
 /*
  * join connects 'line' and the next line.  It returns true if:
  *
- * 1) lines were joined and one was deleted 
- * 2) lines could not be joined 
+ * 1) lines were joined and one was deleted
+ * 2) lines could not be joined
  * 3) next line is empty
  *
  * returns false if:
@@ -226,7 +212,6 @@ static int join(register struct textline *line)
 		register char *s;
 		register struct textline *p = line->next;
 
-
 		s = p->data + p->len - ovfl - 1;
 		while (s != p->data && *s == ' ')
 			s--;
@@ -254,7 +239,6 @@ static int join(register struct textline *line)
 		return FALSE;
 	}
 }
-
 
 static void insert_char(register int ch)
 {
@@ -308,7 +292,6 @@ static void insert_char(register int ch)
 	}
 }
 
-
 static void delete_char()
 {
 	register int i;
@@ -326,7 +309,6 @@ static void delete_char()
 	currline->len--;
 }
 
-
 static void join_currline()
 {
 	struct textline *p = currline;
@@ -342,7 +324,6 @@ static void join_currline()
 	}
 	redraw_everything = TRUE;
 }
-
 
 static void delete_currline()
 {
@@ -365,7 +346,6 @@ static void delete_currline()
 	redraw_everything = TRUE;
 }
 
-
 static void vedit_init()
 {
 	register struct textline *p;
@@ -382,19 +362,16 @@ static void vedit_init()
 	curr_window_line = 0;
 	redraw_everything = FALSE;
 	total_num_of_line = 0;
-
 	shift = 0;	/* lthuang: 99/07 */
 }
-
 
 /*
  * read text from file into editor buffer
  */
-static void read_file(char *filename)
+static void read_file(const char *filename)
 {
 	register int fd;
 	unsigned char ch;
-
 
 	vedit_init();
 	if ((fd = open(filename, O_RDONLY)) < 0)
@@ -473,21 +450,21 @@ static void vedit_exit()
 	}
 
 	currline = NULL;
-/*      
+/*
  * lastline = NULL;
  * firstline = NULL;
  */
 }
 
 
-static int write_file(char *filename, char *saveheader, char *bname)
+static int write_file(const char *filename, const char *saveheader, const char *bname)
 {
 	FILE *fpr, *fpw;
 	char abort[2];
 
 	sprintf(genbuf, _msg_edit_5, (saveheader) ? _msg_edit_6 : _msg_edit_7);
 	getdata(0, 0, genbuf, abort, sizeof(abort), ECHONOSP | XLCASE);
-	if (abort[0] == 'a')
+	if (abort[0] == 'a' || abort[0] == 'A')
 	{
 		vedit_exit();
 		outs("\nFile NOT saved\n");
@@ -495,9 +472,9 @@ static int write_file(char *filename, char *saveheader, char *bname)
 			unlink(filename);
 		return ABORT_EDITING;
 	}
-	else if (abort[0] == 'e')
+	else if (abort[0] == 'e' || abort[0] == 'E')
 		return KEEP_EDITING;
-	else if (abort[0] == 't')	/* lthuang */
+	else if (abort[0] == 't' || abort[0] == 'T')	/* lthuang */
 	{
 		vedit_exit();
 		outs("\nWrite to buffers\n");
@@ -514,16 +491,17 @@ static int write_file(char *filename, char *saveheader, char *bname)
 
 	if (saveheader)
 	{
-/*	
+/*
 		write_article_header(fpw, curuser.userid, curuser.username, bname,
 				     NULL, saveheader, NULL);
 */
 #ifdef IGNORE_CASE
                 write_article_header(fpw, strcasecmp(curuser.fakeuserid, curuser.userid)? curuser.userid:curuser.fakeuserid, uinfo.username, bname,
+				     NULL, saveheader, NULL);
 #else
                 write_article_header(fpw, curuser.userid, uinfo.username, bname,
-#endif				     
 				     NULL, saveheader, NULL);
+#endif
 		fputs("\n", fpw);
 	}
 
@@ -574,7 +552,7 @@ static void vedit_outs(char *s)
 		return;
 	}
 	s += shift;
-	i = 79;
+	i = t_columns - 1;
 	while (*s != '\0' && i-- > 0)
 	{
 		if (*s == 0x1b)
@@ -585,15 +563,12 @@ static void vedit_outs(char *s)
 	}
 }
 
-
 static void display_buffer()
 {
 	register struct textline *p;
 	register int i;
 
-#if 1
 	clear();
-#endif
 	move(0, 0);
 	for (p = top_of_win, i = 0; i < t_lines - 1; i++)
 	{
@@ -609,23 +584,20 @@ static void display_buffer()
 	}
 }
 
-
 static void vedit_help()
 {
-	more(EDIT_HELP, TRUE);
+	pmore(EDIT_HELP, TRUE);
 	redraw_everything = TRUE;
 }
 
-
-/* 
- * include signature: support multiple signatures 
+/*
+ * include signature: support multiple signatures
  */
 static void do_article_sig(const char *wfile)
 {
 	int sig_no = 0, avalsig = 0, i;		/* default: don't include signature */
 	FILE *fpr;
 	static BOOL shownote = TRUE;
-	extern int include_sig();
 
 	if (curuser.flags[0] & SIG_FLAG)
 	{
@@ -661,22 +633,21 @@ static void do_article_sig(const char *wfile)
 		include_sig(curuser.userid, wfile, sig_no);
 }
 
-
 int vedit(const char *filename, const char *saveheader, char *bname)
 {
 	int ch, foo;
 	int lastcharindent = -1;
 	BOOL firstkey = TRUE;
 	char bakfile[PATHLEN];
-
+	int old_rows = t_lines, old_columns = t_columns;
 
 	sethomefile(bakfile, curuser.userid, UFNAME_EDIT);
-	
-	if ((saveheader || uinfo.mode == EDITPLAN || uinfo.mode == EDITBMWEL) 
+
+	if ((saveheader || uinfo.mode == EDITPLAN || uinfo.mode == EDITBMWEL)
 	    && isfile(bakfile)	/* lthuang */
-#ifdef GUEST	
+#ifdef GUEST
 	 && strcmp(curuser.userid, GUEST)
-#endif	 
+#endif
 	 )
 	{
 		clear();
@@ -724,7 +695,24 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 			ch = CTRL('G');
 #endif
 		}
-		if (ch < 0x100 && isprint2(ch))
+		if (old_rows != t_lines || old_columns != t_columns)
+		{
+			static const char *msg_resized = "[1;34;47m¿Ã¹õ¤j¤p¤w§ïÅÜ, «ö(Ctrl-G)¦^¨ì­¶­º![m";
+
+			old_rows = t_lines;
+			old_columns = t_columns;
+
+			top_of_win = firstline;
+			currline = top_of_win;
+			curr_window_line = 0;
+			currpnt = 0;
+			shift = 0;
+			redraw_everything = TRUE;
+			move(t_lines / 2, (t_columns - strlen(msg_resized)) / 2);
+			outs(msg_resized);
+			while (getkey() != CTRL('G'));
+		}
+		else if (ch < 0x100 && isprint2(ch))
 		{
 			insert_char(ch);
 			lastcharindent = -1;
@@ -733,7 +721,6 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 			switch (ch)
 			{
 			case KEY_UP:
-			case CTRL('U'):
 				if (lastcharindent == -1)
 					lastcharindent = currpnt;
 				if (!currline->prev)
@@ -746,7 +733,6 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 				currpnt = (currline->len > lastcharindent) ? lastcharindent : currline->len;
 				break;
 			case KEY_DOWN:
-			case CTRL('O'):
 				if (lastcharindent == -1)
 					lastcharindent = currpnt;
 				if (!currline->next)
@@ -763,7 +749,7 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 				switch (ch)
 				{
 				case CTRL('T'):
-					top_of_win = back_line(lastline, 22);
+					top_of_win = back_line(lastline, b_lines - 2);
 					currline = lastline;
 					curr_window_line = getlineno();
 					currpnt = 0;
@@ -783,8 +769,14 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 					}
 					while (currpnt & 0x7);
 					break;
+				case CTRL('U'):
 				case CTRL('V'):
 					insert_char(0x1b);
+					break;
+				case CTRL('C'):
+					insert_char(0x1b);
+					insert_char('[');
+					insert_char('m');
 					break;
 				case KEY_RIGHT:
 				case CTRL('F'):
@@ -827,7 +819,7 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 					break;
 				case KEY_PGUP:
 				case CTRL('P'):
-					top_of_win = back_line(top_of_win, 22);
+					top_of_win = back_line(top_of_win, b_lines - 2);
 					currline = top_of_win;
 					currpnt = 0;
 					curr_window_line = 0;
@@ -835,7 +827,7 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 					break;
 				case KEY_PGDN:
 				case CTRL('N'):
-					top_of_win = forward_line(top_of_win, 22);
+					top_of_win = forward_line(top_of_win, b_lines - 2);
 					currline = top_of_win;
 					currpnt = 0;
 					curr_window_line = 0;
@@ -898,13 +890,17 @@ int vedit(const char *filename, const char *saveheader, char *bname)
 						curr_window_line--;
 						currline = currline->prev;
 						currpnt = currline->len;
-						if (*killsp(currline->next->data) == '\0')
-						{
+						if (*killsp(currline->next->data) == '\0') {
 							delete_line(currline->next);
 							redraw_everything = TRUE;
-						}
-						else
+						} else {
 							join_currline();
+						}
+						if (curr_window_line == -1) {
+							curr_window_line = 0;
+							top_of_win = currline;
+							rscroll();
+						}
 						break;
 					}
 					currpnt--;

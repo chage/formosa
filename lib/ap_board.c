@@ -21,11 +21,11 @@ static int malloc_board(struct board_t *binfr)
 
 	if (num_brds >= num_alloc_brds)	/* lthuang: 99/08/20 debug */
 		return -1;
-	rank = binfr->rank;		
+	rank = binfr->rank;
 	if (rank < 1 || rank > num_alloc_brds)	/* debug */
 		return -1;
 
-	if (cp && 
+	if (cp &&
 		!(binfr->bhr.brdtype & BRD_UNZAP) &&
 		(ZapRC_IsZapped(binfr->bhr.bid, binfr->bhr.ctime) && (cp->flags[0] & YANK_FLAG)))
 		return -1;
@@ -55,7 +55,7 @@ int CreateBoardList(const USEREC *curuserp)
 		all_brds = NULL;
 	}
 	num_alloc_brds = resolve_brdshm();
-	num_brds = 0;						      	
+	num_brds = 0;
 	if (!all_brds)
 	{
 		if ((all_brds = (struct BoardList *) calloc(1, sizeof(struct BoardList) *
@@ -63,7 +63,7 @@ int CreateBoardList(const USEREC *curuserp)
 		{
 			return num_brds;
 		}
-	}						     
+	}
 
 	if (cp) {
 		sethomefile(fname_zaprc, cp->userid, UFNAME_ZAPRC);
@@ -73,11 +73,14 @@ int CreateBoardList(const USEREC *curuserp)
 	apply_brdshm_board_t(malloc_board);
 
 	/* Merge spaces to tail */
-	for (i = 0; i < num_brds; i++)
+	for (i = 0, j = 0; i < num_brds; i++)
 	{
 		if (!all_brds[i].bhr)
 		{
-			for (j = i; j < MAXBOARD; j++)
+			if (j < i)
+				j = i;
+
+			while (++j < num_alloc_brds)
 			{
 				if (all_brds[j].bhr)
 				{
@@ -86,14 +89,11 @@ int CreateBoardList(const USEREC *curuserp)
 					break;
 				}
 			}
+
+			if (j >= num_alloc_brds)
+				break;
 		}
 	}
-
-#if 0
-	/* 為配合主選單的 (R)ead 功能 */	
-	curbe = &(all_brds[0]);
-	CurBList = all_brds[0].bhr;
-#endif	
 
 	return num_brds;
 }

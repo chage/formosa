@@ -1,5 +1,5 @@
-/* 
- * Re-written and comment by 
+/*
+ * Re-written and comment by
  * Li-te Huang, lthuang@cc.nsysu.edu.tw, 12/05/97
  */
 
@@ -13,16 +13,24 @@ extern BOOL isBM;
 
 int visit_article(int ent, FILEHEADER *finfo, char *direct)
 {
-	if (!in_board)	/* ? */
+	int set;
+	if (!in_board)	/* 只有在看板位讀判斷是用postno */
 		return C_NONE;
 
 	getdata(b_line, 0, _msg_post_9, genbuf, 2, ECHONOSP | XLCASE);
 	if (genbuf[0] == 'y')
-		ReadRC_Visit(CurBList->bid, curuser.userid, 0xFF);
+		set = 1;
 	else if (genbuf[0] == 'n')
-		ReadRC_Visit(CurBList->bid, curuser.userid, 0x00);
+		set = 0;
 	else
 		return C_FOOT;
+
+	if (ReadRC_Visit(CurBList->bid, curuser.userid, set)) {
+		msg(ANSI_COLOR(1;31) "尚未讀任何文章" ANSI_RESET);
+		getkey();
+		return C_FOOT;
+	}
+
 	return C_INIT;
 }
 
@@ -31,7 +39,7 @@ int display_bmwel(int ent, FILEHEADER *finfo, char *direct)
 {
 	setboardfile(genbuf, CurBList->filename, BM_WELCOME);
 	if (isfile(genbuf))
-		more(genbuf, TRUE);
+		pmore(genbuf, TRUE);
 	clear();
 	if (display_bmas() > 0)
 		pressreturn();
@@ -89,15 +97,15 @@ static void delete_bmas(char *uident)
 }
 
 
-/*  Provided for bm to manage affairs of the board, 
+/*  Provided for bm to manage affairs of the board,
  *  including
  *
  *  - edit/delete the board welcome
  *  - edit the bmas list
- *  
- *  We allow sysop and board owner has the full permission, 
+ *
+ *  We allow sysop and board owner has the full permission,
  *  but bmas cannot edit the bmas lists
- *  
+ *
  *  Note: 1. For security, check whether current user is guest
  *           (when GUEST defined)
  *        2. Through this program source, we define
@@ -115,7 +123,7 @@ int bm_manage_file()
 		return C_NONE;
 #endif
 
-	/* not sysop and do not has the permission of bm, 
+	/* not sysop and do not has the permission of bm,
 	 * including board owner and bmas
 	 */
 	if (HAS_PERM(PERM_SYSOP) || isBM)
@@ -202,13 +210,13 @@ int bm_manage_file()
 	else
 	{
 		int save_umode = uinfo.mode;
-		
+
 		update_umode(EDITBMWEL);
 		setboardfile(fname, CurBList->filename, BM_WELCOME);
 		vedit(fname, NULL, NULL);
-		update_umode(save_umode);		
+		update_umode(save_umode);
 	}
-	return C_FULL;	
+	return C_FULL;
 }
 
 
@@ -216,21 +224,24 @@ int bm_manage_file()
  */
 int read_help()
 {
-	more(READ_HELP, TRUE);
+	if (!strncmp("id", CurBList->filename, 3))
+		pmore(ID_READ_HELP, TRUE);
+	else
+		pmore(READ_HELP, TRUE);
 	return C_FULL;
 }
 
 
 /*
    s2 is a multi-string, seprated by tab character,
-   whether s1 is found in s2 
-   TODO: csbbs, bbsweb not supported   
-*/       
+   whether s1 is found in s2
+   TODO: csbbs, bbsweb not supported
+*/
 static int seekstr_in_string(register char *s1, register char *s2)
 {
 	register char *foo, *st;
 	register int len;
-	
+
 	if (*s2 == '\0')
 		return 0;
 	st = s2;
@@ -240,7 +251,7 @@ static int seekstr_in_string(register char *s1, register char *s2)
 			len = strlen(st);
 		else
 			len = foo - st;
-	
+
 		if (!strncmp(s1, st, len))
 			return 1;
 		st += len;
@@ -271,34 +282,18 @@ int has_postperm(BOARDHEADER *bh1)
 	}
 #endif
 
-/* By kmwang:20000529:For KHBBS */
-#if 0
-	else if (curuser.ident != 7)
+	if (curuser.userlevel < bh1->level)
 	{
-                outs(_msg_postperm_reason_ident);
-                pressreturn();
+		prints(_msg_postperm_reason_level,
+		       curuser.userlevel, bh1->filename, bh1->level);
+		pressreturn();
 		return -1;
 	}
-#endif
-/* End of By kmwang:20000529:For KHBBS */
-
-/* by lthuang
-	if (!HAS_PERM(PERM_SYSOP)
-*/	
+	if ((bh1->brdtype & BRD_IDENT) && curuser.ident != 7)
 	{
-		if (curuser.userlevel < bh1->level)
-		{
-			prints(_msg_postperm_reason_level,
-			       curuser.userlevel, bh1->filename, bh1->level);
-			pressreturn();
-			return -1;
-		}
-		if ((bh1->brdtype & BRD_IDENT) && curuser.ident != 7)
-		{
-			outs(_msg_postperm_reason_ident);
-			pressreturn();
-			return -1;
-		}
+		outs(_msg_postperm_reason_ident);
+		pressreturn();
+		return -1;
 	}
 
 	if (!in_board)
@@ -315,19 +310,19 @@ int has_postperm(BOARDHEADER *bh1)
 }
 
 
-/* 
+/*
  * Note:
  * . only the post on board (normal, but not treausre) be send to news
  * and
- * 
+ *
  * (1) Do not send the post to news, if the user is not identified.
  * (when EMAIL_LIMIT defined)
- * (2) By default, all the post send to news. 
+ * (2) By default, all the post send to news.
  * Users can have theris own choice.
- * 
+ *
  * . only the post on board (normal) will be added to postnum,
  * but BRD_NOPOSTNUM excluded
- * 
+ *
  */
 static int mail2(char *to, char *filename, char *title)
 {
@@ -336,7 +331,7 @@ static int mail2(char *to, char *filename, char *title)
 #ifndef IGNORE_CASE
         retval = SendMail(-1, filename, curuser.userid, to,
                           title, curuser.ident);
-#else   
+#else
         strtolow(to);
         retval = SendMail(-1, filename,
 			strcasecmp(curuser.fakeuserid, curuser.userid)?
@@ -406,6 +401,25 @@ static int mail1(char *to)
 	return 0;
 }
 
+int PrepareNote()
+{
+	int rc;
+	int save_umode = uinfo.mode;
+	char title[TTLEN];
+
+	update_umode(POSTING);
+
+	if (!getdata(b_line, 0, "留言：", title, TTLEN, XECHO))
+		return -1;
+
+	rc = publish_note(title, &curuser);
+	if (rc != 0)
+		return rc;
+
+	update_umode(save_umode);
+
+	return 0;
+}
 
 int PrepareMail(char *fn_src, char *to, char *title)
 {
@@ -449,10 +463,10 @@ int PrepareMail(char *fn_src, char *to, char *title)
 	retval = vedit(tempfile, title, NULL);
 	if (!retval)
 		retval = mail2(to, tempfile, title);
-		
+
 	update_umode(save_umode);
 	unlink(tempfile);
-	
+
 	return (retval) ? 0 : PMP_MAIL;
 }
 
@@ -499,7 +513,7 @@ int PreparePost(char *fn_src, char *to, char *title, int option, char *postpath)
 				include_ori(fn_src, tempfile, include_mode);
 
 		}
-	
+
 		update_umode(POSTING);
 
 		if (vedit(tempfile, title, CurBList->filename))
@@ -511,7 +525,7 @@ int PreparePost(char *fn_src, char *to, char *title, int option, char *postpath)
 
 		{
 			int postno, tonews = FALSE;
-	
+
 			if (in_board && (CurBList->brdtype & BRD_NEWS))
 			{
 #if EMAIL_LIMIT
@@ -528,8 +542,8 @@ int PreparePost(char *fn_src, char *to, char *title, int option, char *postpath)
 				}
 			}
 
-			/* 
-			 * do not add postnum, when post on treasure, 
+			/*
+			 * do not add postnum, when post on treasure,
 			 * or the brdtype of the board is BRD_NOPOSTNUM
 			 */
 			if ((in_mail || in_board) && !(CurBList->brdtype & BRD_NOPOSTNUM))
@@ -542,7 +556,7 @@ int PreparePost(char *fn_src, char *to, char *title, int option, char *postpath)
                              CurBList->filename, title, curuser.ident,
                              uinfo.from, tonews, postpath, 0,
 							 thrheadpos, thrpostidx);
-*/							 
+*/
 #ifndef IGNORE_CASE
                 postno = PublishPost(tempfile, curuser.userid, uinfo.username,
 			CurBList->filename, title, curuser.ident,
@@ -557,29 +571,31 @@ int PreparePost(char *fn_src, char *to, char *title, int option, char *postpath)
 			uinfo.from, tonews, postpath, 0,
 			thrheadpos, thrpostidx);
 #endif
-#else 
+#else
 /*
 			postno = PublishPost(tempfile, curuser.userid, curuser.username,
-					             CurBList->filename, title, curuser.ident, 
+					             CurBList->filename, title, curuser.ident,
 				             uinfo.from, tonews, postpath, 0);
-*/				             
+*/
 #ifndef IGNORE_CASE
                 postno = PublishPost(tempfile, curuser.userid, uinfo.username,
-			CurBList->filename, title, curuser.ident, 
+			CurBList->filename, title, curuser.ident,
 			uinfo.from, tonews, postpath, 0);
 #else
                 postno = PublishPost(tempfile,
 			strcasecmp(curuser.fakeuserid, curuser.userid)?
 				curuser.userid:curuser.fakeuserid,
 			uinfo.username,
-			CurBList->filename, title, curuser.ident, 
+			CurBList->filename, title, curuser.ident,
 			uinfo.from, tonews, postpath, 0);
 #endif
 #endif
 
-			if (postno == -1)
+			if (postno < 0)
 			{
 				option &= ~PMP_POST;
+				if (postno == -2)
+					showmsg("請勿大量張貼相同文章");
 			}
 			else
 			{
@@ -649,10 +665,10 @@ int do_post(int ent, FILEHEADER *finfo, char *direct)
 
 /*
  * process the treasure:
- * 
+ *
  * . copy/move the post to treausre
  * . copy/move the treausre between different level of directory
- * 
+ *
  */
 int treasure_article(int ent, FILEHEADER *finfo, char *direct)
 {
@@ -692,13 +708,13 @@ int treasure_article(int ent, FILEHEADER *finfo, char *direct)
 		{
 			setdotfile(fname, direct, finfo->filename);
 			/* stamp: NULL, artmode: FALSE */
-			
+
 #ifdef	USE_THREADING	/* syhu */
-			if (PublishPost(fname, finfo->owner, NULL, NULL, finfo->title, 
-				finfo->ident, NULL, FALSE, tpath, 0, -1, -1) == -1)
-#else 
-			if (PublishPost(fname, finfo->owner, NULL, NULL, finfo->title, 
-				finfo->ident, NULL, FALSE, tpath, 0) == -1)
+			if (PublishPost(fname, finfo->owner, NULL, NULL, finfo->title,
+				finfo->ident, NULL, FALSE, tpath, 0, -1, -1) < 0)
+#else
+			if (PublishPost(fname, finfo->owner, NULL, NULL, finfo->title,
+				finfo->ident, NULL, FALSE, tpath, 0) < 0)
 #endif
 			{
 				msg(_msg_fail);
@@ -742,11 +758,12 @@ int treasure_article(int ent, FILEHEADER *finfo, char *direct)
 		else
 			combin = TRUE;
 
-		if (ch == 'T')
-			flock(fd, LOCK_EX);
 
 		if (combin)
 			sprintf(fn_comb, "tmp/%s.comb", curuser.userid);
+
+		if (ch == 'T' && myflock(fd, LOCK_EX))
+			goto lock_err;
 
 		while (read(fd, fhr, FH_SIZE) == FH_SIZE)
 		{
@@ -759,23 +776,23 @@ int treasure_article(int ent, FILEHEADER *finfo, char *direct)
 			if (combin)
 			{
 				append_file(fn_comb, fname);
-				strcpy(genbuf, 
+				strcpy(genbuf,
 "\n>----------------------------------------------------------------------------<\n");
 				append_record(fn_comb, genbuf, strlen(genbuf));
 			}
 			else
 			{
 #ifdef USE_THREADING	/* syhu */
-				if (PublishPost(fname, fhr->owner, NULL, NULL, 
-						fhr->title, fhr->ident, NULL, FALSE, tpath,0,-1,-1) != -1)
+				if (PublishPost(fname, fhr->owner, NULL, NULL,
+						fhr->title, fhr->ident, NULL, FALSE, tpath,0,-1,-1) >= 0)
 #else
-				if (PublishPost(fname, fhr->owner, NULL, NULL, 
-						fhr->title, fhr->ident, NULL, FALSE, tpath, 0) != -1)
+				if (PublishPost(fname, fhr->owner, NULL, NULL,
+						fhr->title, fhr->ident, NULL, FALSE, tpath, 0) >= 0)
 #endif
 				{
 					++result;
 				} else {
-					result = -1;
+					result = 0 - result;
 					break;
 				}
 			}
@@ -783,20 +800,20 @@ int treasure_article(int ent, FILEHEADER *finfo, char *direct)
 
 		if (combin) {
 #ifdef USE_THREADING	/* syhu */
-			if (PublishPost(fn_comb, curuser.userid, NULL, NULL, 
+			if (PublishPost(fn_comb, curuser.userid, NULL, NULL,
 						_str_combined_treasure_title,
-						curuser.ident, NULL, FALSE, tpath, 0, -1, -1) != -1)
+						curuser.ident, NULL, FALSE, tpath, 0, -1, -1) >= 0)
 #else
-			if (PublishPost(fn_comb, curuser.userid, NULL, NULL, 
+			if (PublishPost(fn_comb, curuser.userid, NULL, NULL,
 						_str_combined_treasure_title,
-						curuser.ident, NULL, FALSE, tpath, 0) != -1)
+						curuser.ident, NULL, FALSE, tpath, 0) >= 0)
 #endif
 				result = 1;
 			else
 				result = -1;
 		}
 
-		if (ch == 'T' && result != -1)
+		if (ch == 'T' && result > 0)
 		{
 			if (lseek(fd, 0, SEEK_SET) != -1)
 			{
@@ -819,11 +836,13 @@ int treasure_article(int ent, FILEHEADER *finfo, char *direct)
 		}
 		if (ch == 'T')
 			flock(fd, LOCK_UN);
+lock_err:
 		close(fd);
 		if (combin)
 			unlink(fn_comb);
-		if (result < 0) {
-			msg(_msg_fail);
+		if (result <= 0) {
+			sprintf(msgbuf, "第%d篇後錯誤", 0 - result);
+			msg(msgbuf);
 		} else {
 			sprintf(msgbuf, "%s %d篇", _msg_finish, result);
 			msg(msgbuf);
